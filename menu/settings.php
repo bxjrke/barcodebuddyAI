@@ -33,6 +33,10 @@ if (isset($_POST["isSaved"])) {
     echo "OK";
     die();
 }
+if (isset($_POST["test_openai_lookup"])) {
+    testOpenAiLookup();
+    die();
+}
 
 
 $webUi = new WebUiGenerator(MENU_SETTINGS);
@@ -151,6 +155,82 @@ function getHtmlSettingsBarcodeLookup(): string {
 
     $html->addHtml('</ul>');
     $html->addLineBreak();
+
+    $openAiOptionsDisplay = ($config["LOOKUP_USE_OPENAI"] == "1") ? "block" : "none";
+    $html->addHtml('<div id="openaiProviderOptions" style="display:' . $openAiOptionsDisplay . '; border:1px solid #ddd; padding:12px; margin-bottom:12px;">');
+    $html->addHtml("<b>OpenAI Lookup Settings</b><br><small>Only used when the OpenAI provider is enabled above.</small>");
+    $html->addLineBreak();
+    $html->addHtml('<small><b>Hint:</b> You need an OpenAI developer account with API access and available credit/balance. Each lookup sends a request, consumes tokens and therefore costs money.</small>');
+    $html->addLineBreak();
+    $html->addLineBreak();
+    $html->addHtml((new EditFieldBuilder(
+        'LOOKUP_OPENAI_API_KEY',
+        'OpenAI API Key (ChatGPT Lookup)',
+        $config["LOOKUP_OPENAI_API_KEY"],
+        $html))
+        ->required($config["LOOKUP_USE_OPENAI"])
+        ->pattern('.{20,}')
+        ->type('password')
+        ->disabled(!$config["LOOKUP_USE_OPENAI"])
+        ->generate(true)
+    );
+    $html->addLineBreak();
+    $openAiModelOptions = array(
+        "gpt-5.2" => "gpt-5.2",
+        "gpt-5.2-pro" => "gpt-5.2-pro",
+        "gpt-5" => "gpt-5",
+        "gpt-5-mini" => "gpt-5-mini",
+        "gpt-5-nano" => "gpt-5-nano",
+        "gpt-4.1" => "gpt-4.1",
+        "gpt-4.1-mini" => "gpt-4.1-mini",
+        "gpt-4o" => "gpt-4o",
+        "gpt-4o-mini" => "gpt-4o-mini"
+    );
+    $selectedModel = $config["LOOKUP_OPENAI_MODEL"] ?? "gpt-4.1-mini";
+    $selectDisabled = ($config["LOOKUP_USE_OPENAI"] == "1") ? "" : " disabled";
+    $selectHtml = '<label for="LOOKUP_OPENAI_MODEL"><b>OpenAI Model</b></label><br>';
+    $selectHtml .= '<select id="LOOKUP_OPENAI_MODEL" name="LOOKUP_OPENAI_MODEL" style="width:100%;max-width:420px;padding:6px;"' . $selectDisabled . '>';
+    foreach ($openAiModelOptions as $value => $label) {
+        $selectedHtml = ($selectedModel === $value) ? ' selected' : '';
+        $selectHtml .= '<option value="' . sanitizeString($value) . '"' . $selectedHtml . '>' . sanitizeString($label) . '</option>';
+    }
+    $selectHtml .= '</select>';
+    $html->addHtml($selectHtml);
+    $html->addLineBreak();
+
+    $html->addLineBreak();
+    $html->addHtml("<b>OpenAI naming schema</b><br><small>Choose the exact components that must be returned. If one selected component cannot be determined, the lookup returns UNKNOWN.</small>");
+    $html->addLineBreak();
+    $html->addCheckbox("LOOKUP_OPENAI_NAME_MANUFACTURER", "Brand / trade name", $config["LOOKUP_OPENAI_NAME_MANUFACTURER"], !$config["LOOKUP_USE_OPENAI"], false);
+    $html->addCheckbox("LOOKUP_OPENAI_NAME_PRODUCT", "Product name", $config["LOOKUP_OPENAI_NAME_PRODUCT"], !$config["LOOKUP_USE_OPENAI"], false);
+    $html->addCheckbox("LOOKUP_OPENAI_NAME_PACKSIZE", "Package size", $config["LOOKUP_OPENAI_NAME_PACKSIZE"], !$config["LOOKUP_USE_OPENAI"], false);
+    $html->addLineBreak();
+    $html->addHtml((new EditFieldBuilder(
+        'LOOKUP_OPENAI_TEST_BARCODE_TEMP',
+        'Test Barcode',
+        '4306188348191',
+        $html))
+        ->pattern('[0-9]{8,18}')
+        ->disabled(!$config["LOOKUP_USE_OPENAI"])
+        ->generate(true)
+    );
+    $html->addLineBreak();
+    $testButtonHtml = $html->buildButton("testOpenAiLookupBtn", "Test OpenAI Lookup")
+        ->setId("testOpenAiLookupBtn")
+        ->setOnClick("return testOpenAiLookupRequest();")
+        ->setRaised(true)
+        ->setIsAccent(true)
+        ->setDisabled(!$config["LOOKUP_USE_OPENAI"])
+        ->generate(true);
+    $html->addHtml('<div style="display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap;">'
+        . '<div style="flex:0 0 auto;">' . $testButtonHtml . '</div>'
+        . '</div>');
+    $html->addLineBreak();
+    $html->addHtml('<div id="openaiLookupTestStatus" style="display:none; margin:6px 0 8px 0; font-weight:600;"></div>');
+    $html->addHtml('<div id="openaiLookupTestResult" style="display:block; white-space:pre-wrap; font-family:monospace; background:#f3f4f6; border:1px solid #d6d8dc; border-radius:4px; padding:10px; margin-top:6px; min-height:44px;"></div>');
+    $html->addHtml('</div>');
+
+    $html->addLineBreak();
     $html->addHtml((new EditFieldBuilder(
         'LOOKUP_UPC_DATABASE_KEY',
         'UPCDatabase.org API Key',
@@ -185,25 +265,6 @@ function getHtmlSettingsBarcodeLookup(): string {
         ->generate(true)
     );
 
-    $html->addLineBreak();
-    $html->addHtml((new EditFieldBuilder(
-        'LOOKUP_OPENAI_API_KEY',
-        'OpenAI API Key (ChatGPT Lookup)',
-        $config["LOOKUP_OPENAI_API_KEY"],
-        $html))
-        ->required($config["LOOKUP_USE_OPENAI"])
-        ->pattern('.{20,}')
-        ->type('password')
-        ->disabled(!$config["LOOKUP_USE_OPENAI"])
-        ->generate(true)
-    );
-
-    $html->addLineBreak();
-    $html->addHtml("<b>OpenAI naming schema</b><br><small>Select which parts should be included in the looked up product name</small>");
-    $html->addLineBreak();
-    $html->addCheckbox("LOOKUP_OPENAI_NAME_MANUFACTURER", "Manufacturer", $config["LOOKUP_OPENAI_NAME_MANUFACTURER"], false, false);
-    $html->addCheckbox("LOOKUP_OPENAI_NAME_PRODUCT", "Product name", $config["LOOKUP_OPENAI_NAME_PRODUCT"], false, false);
-    $html->addCheckbox("LOOKUP_OPENAI_NAME_PACKSIZE", "Package size", $config["LOOKUP_OPENAI_NAME_PACKSIZE"], false, false);
     $html->addHiddenField("LOOKUP_ORDER", $config["LOOKUP_ORDER"]);
 
     $html->addScript("var elements = document.getElementById('providers');
@@ -211,9 +272,240 @@ function getHtmlSettingsBarcodeLookup(): string {
                                     dataIdAttr: 'data-id',
                                     onSort: function (evt) {
                                        document.getElementById('LOOKUP_ORDER').value = sortable.toArray().join();
-                                    },});");
+                                    },});
+
+                           function setOpenAiOptionsEnabled(isEnabled) {
+                               var box = document.getElementById('openaiProviderOptions');
+                               if (box) {
+                                   box.style.display = isEnabled ? 'block' : 'none';
+                               }
+                               var ids = [
+                                   'LOOKUP_OPENAI_MODEL',
+                                   'LOOKUP_OPENAI_NAME_MANUFACTURER',
+                                   'LOOKUP_OPENAI_NAME_PRODUCT',
+                                   'LOOKUP_OPENAI_NAME_PACKSIZE',
+                                   'testOpenAiLookupBtn'
+                               ];
+                               for (var i = 0; i < ids.length; i++) {
+                                   var el = document.getElementById(ids[i]);
+                                   if (el) {
+                                       el.disabled = !isEnabled;
+                                   }
+                               }
+                               if (!isEnabled) {
+                                   var statusEl = document.getElementById('openaiLookupTestStatus');
+                                   if (statusEl) {
+                                       statusEl.style.display = 'none';
+                                       statusEl.textContent = '';
+                                   }
+                                   var resultEl = document.getElementById('openaiLookupTestResult');
+                                   if (resultEl) {
+                                       resultEl.style.display = 'block';
+                                       resultEl.textContent = '';
+                                   }
+                               }
+                           }
+
+                           function testOpenAiLookupRequest() {
+                               var statusEl = document.getElementById('openaiLookupTestStatus');
+                               var resultEl = document.getElementById('openaiLookupTestResult');
+                               if (statusEl) {
+                                   statusEl.style.display = 'none';
+                                   statusEl.textContent = '';
+                               }
+                               if (resultEl) {
+                                   resultEl.style.display = 'block';
+                                   resultEl.textContent = 'Testing OpenAI lookup...';
+                               }
+                               var formEl = document.getElementById('settings3_form');
+                               if (!formEl) {
+                                   if (statusEl) {
+                                       statusEl.style.color = '#b00020';
+                                       statusEl.textContent = 'Test failed';
+                                   }
+                                   if (resultEl) {
+                                       resultEl.textContent = 'Test failed: settings form not found';
+                                   }
+                                   return false;
+                               }
+                               var formData = new FormData(formEl);
+                               formData.append('test_openai_lookup', '1');
+
+                               var xhr = new XMLHttpRequest();
+                               xhr.open('POST', window.location.href, true);
+                               xhr.timeout = 30000;
+                               xhr.onload = function() {
+                                   if (!resultEl) {
+                                       return;
+                                   }
+                                   if (xhr.status !== 200) {
+                                       resultEl.textContent = 'Test failed (HTTP ' + xhr.status + ')';
+                                       return;
+                                   }
+                                   try {
+                                       var response = JSON.parse(xhr.responseText);
+                                       if (response.ok) {
+                                           if (statusEl) {
+                                               statusEl.style.display = 'block';
+                                               statusEl.style.color = '#137333';
+                                               statusEl.textContent = 'OpenAI lookup successful';
+                                           }
+                                           var output = '';
+                                           output += 'Barcode: ' + response.barcode + '\\n';
+                                           output += 'Model: ' + (response.model || '-') + '\\n';
+                                           if (response.parsed_fields) {
+                                               output += '\\nParsed fields from AI response:\\n' + JSON.stringify(response.parsed_fields, null, 2) + '\\n';
+                                           }
+                                           output += '\\nRaw AI response:\\n' + (response.raw || '(empty)') + '\\n';
+                                           output += '\\nFinal Result (server-composed):\\n' + response.name;
+                                           resultEl.textContent = output;
+                                       } else {
+                                           if (statusEl) {
+                                               statusEl.style.display = 'block';
+                                               statusEl.style.color = '#b00020';
+                                               statusEl.textContent = 'OpenAI lookup failed';
+                                           }
+                                           var errorOutput = '';
+                                           errorOutput += 'Barcode: ' + response.barcode + '\\n';
+                                           errorOutput += 'Model: ' + (response.model || '-') + '\\n';
+                                           errorOutput += 'Error: ' + (response.error || 'Unknown error') + '\\n';
+                                           if (response.parsed_fields) {
+                                               errorOutput += '\\nParsed fields from AI response:\\n' + JSON.stringify(response.parsed_fields, null, 2) + '\\n';
+                                           }
+                                           errorOutput += '\\nRaw AI response:\\n' + (response.raw || '(empty)');
+                                           resultEl.textContent = errorOutput;
+                                       }
+                                   } catch (e) {
+                                       if (statusEl) {
+                                           statusEl.style.display = 'block';
+                                           statusEl.style.color = '#b00020';
+                                           statusEl.textContent = 'OpenAI lookup failed';
+                                       }
+                                       resultEl.textContent = 'Invalid response from server:\\n' + xhr.responseText;
+                                   }
+                               };
+                               xhr.onerror = function() {
+                                   if (statusEl) {
+                                       statusEl.style.display = 'block';
+                                       statusEl.style.color = '#b00020';
+                                       statusEl.textContent = 'OpenAI lookup failed';
+                                   }
+                                   if (resultEl) {
+                                       resultEl.textContent = 'Test failed: network/XHR error while calling settings endpoint';
+                                   }
+                               };
+                               xhr.onabort = function() {
+                                   if (statusEl) {
+                                       statusEl.style.display = 'block';
+                                       statusEl.style.color = '#b00020';
+                                       statusEl.textContent = 'OpenAI lookup aborted';
+                                   }
+                                   if (resultEl) {
+                                       resultEl.textContent = 'Test aborted';
+                                   }
+                               };
+                               xhr.ontimeout = function() {
+                                   if (statusEl) {
+                                       statusEl.style.display = 'block';
+                                       statusEl.style.color = '#b00020';
+                                       statusEl.textContent = 'OpenAI lookup timed out';
+                                   }
+                                   if (resultEl) {
+                                       resultEl.textContent = 'Test timed out after 30s (request reached server but no response in time)';
+                                   }
+                               };
+                               xhr.send(formData);
+                               return false;
+                           }
+
+                           setOpenAiOptionsEnabled(document.getElementById('LOOKUP_USE_OPENAI') && document.getElementById('LOOKUP_USE_OPENAI').checked);");
 
     return $html->getHtml();
+}
+
+function testOpenAiLookup(): void {
+    header('Content-Type: application/json');
+    $barcode = "4306188348191";
+    if (isset($_POST["LOOKUP_OPENAI_TEST_BARCODE_TEMP"])) {
+        $postedBarcode = preg_replace('/[^0-9]/', '', strval($_POST["LOOKUP_OPENAI_TEST_BARCODE_TEMP"]));
+        if ($postedBarcode !== "") {
+            $barcode = $postedBarcode;
+        }
+    }
+    $config  = BBConfig::getInstance();
+
+    // Allow testing with current form values (even before saving)
+    $config["LOOKUP_USE_OPENAI"] = "1";
+    if (isset($_POST["LOOKUP_OPENAI_API_KEY"])) {
+        $config["LOOKUP_OPENAI_API_KEY"] = sanitizeString($_POST["LOOKUP_OPENAI_API_KEY"]);
+    }
+    if (isset($_POST["LOOKUP_OPENAI_MODEL"]) && $_POST["LOOKUP_OPENAI_MODEL"] !== "") {
+        $config["LOOKUP_OPENAI_MODEL"] = sanitizeString($_POST["LOOKUP_OPENAI_MODEL"]);
+    }
+    applyPostedCheckboxForTest($config, "LOOKUP_OPENAI_NAME_MANUFACTURER");
+    applyPostedCheckboxForTest($config, "LOOKUP_OPENAI_NAME_PRODUCT");
+    applyPostedCheckboxForTest($config, "LOOKUP_OPENAI_NAME_PACKSIZE");
+
+    $provider = new ProviderOpenAI();
+    $result   = $provider->lookupBarcode($barcode);
+
+    if ($result != null && isset($result["name"])) {
+        echo json_encode(array(
+            "ok" => true,
+            "barcode" => $barcode,
+            "model" => $config["LOOKUP_OPENAI_MODEL"],
+            "name" => html_entity_decode($result["name"], ENT_QUOTES, 'UTF-8'),
+            "raw" => $provider->getLastResponseText(),
+            "parsed_fields" => parseOpenAiRawJsonForTest($provider->getLastResponseText())
+        ));
+        return;
+    }
+
+    echo json_encode(array(
+        "ok" => false,
+        "barcode" => $barcode,
+        "model" => $config["LOOKUP_OPENAI_MODEL"],
+        "error" => $provider->getLastErrorMessage() ?? "No result",
+        "raw" => $provider->getLastResponseText(),
+        "parsed_fields" => parseOpenAiRawJsonForTest($provider->getLastResponseText())
+    ));
+}
+
+function applyPostedCheckboxForTest(BBConfig $config, string $key): void {
+    if (isset($_POST[$key])) {
+        $config[$key] = "1";
+        return;
+    }
+    if (isset($_POST[$key . "_hidden"])) {
+        $config[$key] = sanitizeString($_POST[$key . "_hidden"]);
+    }
+}
+
+function parseOpenAiRawJsonForTest(?string $raw): ?array {
+    if ($raw == null) {
+        return null;
+    }
+    $decoded = json_decode($raw, true);
+    if (is_array($decoded)) {
+        return array(
+            "brand" => $decoded["brand"] ?? null,
+            "product_name" => $decoded["product_name"] ?? null,
+            "package_size" => $decoded["package_size"] ?? null
+        );
+    }
+
+    if (preg_match('/\{.*\}/s', $raw, $matches) !== 1) {
+        return null;
+    }
+    $decoded = json_decode($matches[0], true);
+    if (!is_array($decoded)) {
+        return null;
+    }
+    return array(
+        "brand" => $decoded["brand"] ?? null,
+        "product_name" => $decoded["product_name"] ?? null,
+        "package_size" => $decoded["package_size"] ?? null
+    );
 }
 
 function generateApiKeyChangeScript(string $functionName, string $keyId): string {
@@ -277,7 +569,22 @@ function getProviderListItems(UiEditor $html): array {
         $html)
     )->onCheckChanged(
         "handleOpenAIChange(this)",
-        generateApiKeyChangeScript("handleOpenAIChange", "LOOKUP_OPENAI_API_KEY"))
+        "function handleOpenAIChange(element) {
+                apiEditField = document.getElementById('LOOKUP_OPENAI_API_KEY');
+                if (!apiEditField) {
+                    console.warn('Unable to find element LOOKUP_OPENAI_API_KEY');
+                } else {
+                    apiEditField.required = element.checked;
+                    if (element.checked) {
+                        apiEditField.parentNode.MaterialTextfield.enable();
+                    } else {
+                        apiEditField.parentNode.MaterialTextfield.disable();
+                    }
+                }
+                if (typeof setOpenAiOptionsEnabled === 'function') {
+                    setOpenAiOptionsEnabled(element.checked);
+                }
+            }")
         ->generate(true), "Uses OpenAI ChatGPT API for barcode name lookup", LOOKUP_ID_OPENAI, true);
 
     $bbServerSubtitle                    = "Uses " . BarcodeFederation::HOST_READABLE;

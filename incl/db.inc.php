@@ -114,6 +114,7 @@ class DatabaseConnection {
         "LOOKUP_OPENGTIN_KEY" => null,
         "LOOKUP_DISCOGS_TOKEN" => null,
         "LOOKUP_OPENAI_API_KEY" => null,
+        "LOOKUP_OPENAI_MODEL" => "gpt-4.1-mini",
         "LOOKUP_OPENAI_NAME_MANUFACTURER" => "1",
         "LOOKUP_OPENAI_NAME_PRODUCT" => "1",
         "LOOKUP_OPENAI_NAME_PACKSIZE" => "1",

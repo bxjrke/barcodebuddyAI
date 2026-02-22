@@ -112,7 +112,8 @@ const OVERRIDDEN_USER_CONFIG       = array(
                                          // "LOOKUP_USE_UPC_DATABASE"    => "0",
                                          // "LOOKUP_UPC_DATABASE_KEY"    => null,
                                          // "LOOKUP_USE_OPENAI"          => "0",
-                                         // "LOOKUP_OPENAI_API_KEY"      => null
+                                         // "LOOKUP_OPENAI_API_KEY"      => null,
+                                         // "LOOKUP_OPENAI_MODEL"        => "gpt-4.1-mini"
                                          );
 
 
