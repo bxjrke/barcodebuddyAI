@@ -110,10 +110,11 @@ const OVERRIDDEN_USER_CONFIG       = array(
                                          // "LOOKUP_USE_JUMBO"           => "0",
                                          // "LOOKUP_USE_PLUS"            => "0",
                                          // "LOOKUP_USE_UPC_DATABASE"    => "0",
-                                         // "LOOKUP_UPC_DATABASE_KEY"    => null
+                                         // "LOOKUP_UPC_DATABASE_KEY"    => null,
+                                         // "LOOKUP_USE_OPENAI"          => "0",
+                                         // "LOOKUP_OPENAI_API_KEY"      => null
                                          );
 
 
 // Currently not in use
 const IS_DOCKER                    = false;
-

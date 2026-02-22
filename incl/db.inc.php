@@ -53,6 +53,7 @@ const LOOKUP_ID_OPENGTINDB    = "6";
 const LOOKUP_ID_FEDERATION    = "7";
 const LOOKUP_ID_PLUS          = "8";
 const LOOKUP_ID_DISCOGS       = "9";
+const LOOKUP_ID_OPENAI        = "10";
 
 /**
  * Dockerfile changes this to "1", so that the default is true
@@ -108,9 +109,14 @@ class DatabaseConnection {
         "LOOKUP_USE_OPEN_GTIN_DATABASE" => "0",
         "LOOKUP_USE_DISCOGS" => "0",
         "LOOKUP_USE_BBUDDY_SERVER" => "0",
+        "LOOKUP_USE_OPENAI" => "0",
         "LOOKUP_UPC_DATABASE_KEY" => null,
         "LOOKUP_OPENGTIN_KEY" => null,
         "LOOKUP_DISCOGS_TOKEN" => null,
+        "LOOKUP_OPENAI_API_KEY" => null,
+        "LOOKUP_OPENAI_NAME_MANUFACTURER" => "1",
+        "LOOKUP_OPENAI_NAME_PRODUCT" => "1",
+        "LOOKUP_OPENAI_NAME_PACKSIZE" => "1",
         "USE_REDIS" => DEFAULT_USE_REDIS,
         "REDIS_IP" => "127.0.0.1",
         "REDIS_PORT" => "6379",
@@ -127,7 +133,8 @@ class DatabaseConnection {
             LOOKUP_ID_JUMBO . "," .
             LOOKUP_ID_OPENGTINDB . "," .
             LOOKUP_ID_DISCOGS . "," .
-            LOOKUP_ID_FEDERATION);
+            LOOKUP_ID_FEDERATION . "," .
+            LOOKUP_ID_OPENAI);
 
 
     const DB_INT_VALUES = array("REVERT_TIME");

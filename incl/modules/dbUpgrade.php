@@ -148,6 +148,12 @@ class DbUpgrade {
                 $this->databaseConnection->updateConfig("LOOKUP_ORDER", $config["LOOKUP_ORDER"] . ",9");
             }
         }
+        if ($previousVersion < 1819) {
+            $config = BBConfig::getInstance();
+            if ($config["LOOKUP_ORDER"] != DatabaseConnection::DEFAULT_VALUES["LOOKUP_ORDER"]) {
+                $this->databaseConnection->updateConfig("LOOKUP_ORDER", $config["LOOKUP_ORDER"] . ",10");
+            }
+        }
         RedisConnection::updateCache();
     }
 

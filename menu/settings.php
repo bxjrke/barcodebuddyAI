@@ -184,6 +184,26 @@ function getHtmlSettingsBarcodeLookup(): string {
         ->disabled(!$config["LOOKUP_USE_DISCOGS"])
         ->generate(true)
     );
+
+    $html->addLineBreak();
+    $html->addHtml((new EditFieldBuilder(
+        'LOOKUP_OPENAI_API_KEY',
+        'OpenAI API Key (ChatGPT Lookup)',
+        $config["LOOKUP_OPENAI_API_KEY"],
+        $html))
+        ->required($config["LOOKUP_USE_OPENAI"])
+        ->pattern('.{20,}')
+        ->type('password')
+        ->disabled(!$config["LOOKUP_USE_OPENAI"])
+        ->generate(true)
+    );
+
+    $html->addLineBreak();
+    $html->addHtml("<b>OpenAI naming schema</b><br><small>Select which parts should be included in the looked up product name</small>");
+    $html->addLineBreak();
+    $html->addCheckbox("LOOKUP_OPENAI_NAME_MANUFACTURER", "Manufacturer", $config["LOOKUP_OPENAI_NAME_MANUFACTURER"], false, false);
+    $html->addCheckbox("LOOKUP_OPENAI_NAME_PRODUCT", "Product name", $config["LOOKUP_OPENAI_NAME_PRODUCT"], false, false);
+    $html->addCheckbox("LOOKUP_OPENAI_NAME_PACKSIZE", "Package size", $config["LOOKUP_OPENAI_NAME_PACKSIZE"], false, false);
     $html->addHiddenField("LOOKUP_ORDER", $config["LOOKUP_ORDER"]);
 
     $html->addScript("var elements = document.getElementById('providers');
@@ -249,6 +269,16 @@ function getProviderListItems(UiEditor $html): array {
         "handleDiscogsChange(this)",
         generateApiKeyChangeScript("handleDiscogsChange", "LOOKUP_DISCOGS_TOKEN"))
         ->generate(true), "Uses Discogs.com", LOOKUP_ID_DISCOGS, true);
+
+    $result["id" . LOOKUP_ID_OPENAI] = $html->addListItem((new CheckBoxBuilder(
+        "LOOKUP_USE_OPENAI",
+        "OpenAI (ChatGPT)",
+        $config["LOOKUP_USE_OPENAI"],
+        $html)
+    )->onCheckChanged(
+        "handleOpenAIChange(this)",
+        generateApiKeyChangeScript("handleOpenAIChange", "LOOKUP_OPENAI_API_KEY"))
+        ->generate(true), "Uses OpenAI ChatGPT API for barcode name lookup", LOOKUP_ID_OPENAI, true);
 
     $bbServerSubtitle                    = "Uses " . BarcodeFederation::HOST_READABLE;
     if (!$config["BBUDDY_SERVER_ENABLED"])
