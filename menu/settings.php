@@ -433,6 +433,17 @@ function getProviderListItems(UiEditor $html): array {
     $config                                 = BBConfig::getInstance();
     $result                                 = array();
 
+    $buildProviderListItem = function(string $htmlHeader, string $htmlBody, string $data = ""): string {
+        if (strpos($htmlHeader, "mdl-checkbox") !== false) {
+            $htmlBody = "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;" . $htmlBody;
+        }
+        return "<li data-id=\"$data\" class=\"mdl-list__item\" data-value=\"$data\" style=\"height:auto; min-height:72px; align-items:flex-start;\">"
+            . "<span class=\"mdl-list__item-primary-content\" style=\"height:auto; white-space:normal; display:block;\">"
+            . $htmlHeader
+            . "<span class=\"mdl-list__item-sub-title\" style=\"white-space:normal; line-height:1.4;\">" . $htmlBody . "</span>"
+            . "</span></li>\n";
+    };
+
     $upcDbSettingsHtml = '<div id="upcDbApiKeyBox" style="display:' . (($config["LOOKUP_USE_UPC_DATABASE"] == "1") ? "block" : "none") . '; margin-top:8px;">'
         . (new EditFieldBuilder(
             'LOOKUP_UPC_DATABASE_KEY',
@@ -530,12 +541,12 @@ function getProviderListItems(UiEditor $html): array {
         . '<div id="openaiLookupTestStatus" style="display:none; margin:6px 0 8px 0; font-weight:600;"></div>'
         . '<div id="openaiLookupTestResult" style="display:block; white-space:pre-wrap; font-family:monospace; background:#f3f4f6; border:1px solid #d6d8dc; border-radius:4px; padding:10px; margin-top:6px; min-height:44px;"></div>'
         . '</div>';
-    $result["id" . LOOKUP_ID_OPENFOODFACTS] = $html->addListItem($html->addCheckbox('LOOKUP_USE_OFF', 'Open Food Facts', $config["LOOKUP_USE_OFF"], false, false, true), "Uses OpenFoodFacts.org", LOOKUP_ID_OPENFOODFACTS, true);
-    $result["id" . LOOKUP_ID_UPCDB]         = $html->addListItem($html->addCheckbox('LOOKUP_USE_UPC', 'UPC Item DB', $config["LOOKUP_USE_UPC"], false, false, true), "Uses UPCitemDB.com", LOOKUP_ID_UPCDB, true);
-    $result["id" . LOOKUP_ID_ALBERTHEIJN]   = $html->addListItem($html->addCheckbox('LOOKUP_USE_AH', 'Albert Heijn', $config["LOOKUP_USE_AH"], false, false, true), "Uses AH.nl", LOOKUP_ID_ALBERTHEIJN, true);
-    $result["id" . LOOKUP_ID_PLUS]          = $html->addListItem($html->addCheckbox('LOOKUP_USE_PLUS', 'Plus Supermarkt', $config["LOOKUP_USE_PLUS"], false, false, true), "Uses PLUS.nl", LOOKUP_ID_PLUS, true);
-    $result["id" . LOOKUP_ID_JUMBO]         = $html->addListItem($html->addCheckbox('LOOKUP_USE_JUMBO', 'Jumbo', $config["LOOKUP_USE_JUMBO"], false, false, true), "Uses Jumbo.com (slow)", LOOKUP_ID_JUMBO, true);
-    $result["id" . LOOKUP_ID_UPCDATABASE]   = $html->addListItem((new CheckBoxBuilder(
+    $result["id" . LOOKUP_ID_OPENFOODFACTS] = $buildProviderListItem($html->addCheckbox('LOOKUP_USE_OFF', 'Open Food Facts', $config["LOOKUP_USE_OFF"], false, false, true), "Uses OpenFoodFacts.org", LOOKUP_ID_OPENFOODFACTS);
+    $result["id" . LOOKUP_ID_UPCDB]         = $buildProviderListItem($html->addCheckbox('LOOKUP_USE_UPC', 'UPC Item DB', $config["LOOKUP_USE_UPC"], false, false, true), "Uses UPCitemDB.com", LOOKUP_ID_UPCDB);
+    $result["id" . LOOKUP_ID_ALBERTHEIJN]   = $buildProviderListItem($html->addCheckbox('LOOKUP_USE_AH', 'Albert Heijn', $config["LOOKUP_USE_AH"], false, false, true), "Uses AH.nl", LOOKUP_ID_ALBERTHEIJN);
+    $result["id" . LOOKUP_ID_PLUS]          = $buildProviderListItem($html->addCheckbox('LOOKUP_USE_PLUS', 'Plus Supermarkt', $config["LOOKUP_USE_PLUS"], false, false, true), "Uses PLUS.nl", LOOKUP_ID_PLUS);
+    $result["id" . LOOKUP_ID_JUMBO]         = $buildProviderListItem($html->addCheckbox('LOOKUP_USE_JUMBO', 'Jumbo', $config["LOOKUP_USE_JUMBO"], false, false, true), "Uses Jumbo.com (slow)", LOOKUP_ID_JUMBO);
+    $result["id" . LOOKUP_ID_UPCDATABASE]   = $buildProviderListItem((new CheckBoxBuilder(
         "LOOKUP_USE_UPC_DATABASE",
         "UPC Database",
         $config["LOOKUP_USE_UPC_DATABASE"],
@@ -543,9 +554,9 @@ function getProviderListItems(UiEditor $html): array {
     )->onCheckChanged(
         "handleUPCDBChange(this)",
         generateApiKeyChangeScript("handleUPCDBChange", "LOOKUP_UPC_DATABASE_KEY", "upcDbApiKeyBox"))
-        ->generate(true), "Uses UPCDatabase.org" . $upcDbSettingsHtml, LOOKUP_ID_UPCDATABASE, true);
+        ->generate(true), "Uses UPCDatabase.org" . $upcDbSettingsHtml, LOOKUP_ID_UPCDATABASE);
 
-    $result["id" . LOOKUP_ID_OPENGTINDB] = $html->addListItem((new CheckBoxBuilder(
+    $result["id" . LOOKUP_ID_OPENGTINDB] = $buildProviderListItem((new CheckBoxBuilder(
         "LOOKUP_USE_OPEN_GTIN_DATABASE",
         "Open EAN / GTIN Database",
         $config["LOOKUP_USE_OPEN_GTIN_DATABASE"],
@@ -553,9 +564,9 @@ function getProviderListItems(UiEditor $html): array {
     )->onCheckChanged(
         "handleOpenGtinChange(this)",
         generateApiKeyChangeScript("handleOpenGtinChange", "LOOKUP_OPENGTIN_KEY", "openGtinApiKeyBox"))
-        ->generate(true), "Uses OpenGtinDb.org" . $openGtinSettingsHtml, LOOKUP_ID_OPENGTINDB, true);
+        ->generate(true), "Uses OpenGtinDb.org" . $openGtinSettingsHtml, LOOKUP_ID_OPENGTINDB);
 
-    $result["id" . LOOKUP_ID_DISCOGS]   = $html->addListItem((new CheckBoxBuilder(
+    $result["id" . LOOKUP_ID_DISCOGS]   = $buildProviderListItem((new CheckBoxBuilder(
         "LOOKUP_USE_DISCOGS",
         "Discogs Database",
         $config["LOOKUP_USE_DISCOGS"],
@@ -563,9 +574,9 @@ function getProviderListItems(UiEditor $html): array {
     )->onCheckChanged(
         "handleDiscogsChange(this)",
         generateApiKeyChangeScript("handleDiscogsChange", "LOOKUP_DISCOGS_TOKEN", "discogsApiKeyBox"))
-        ->generate(true), "Uses Discogs.com" . $discogsSettingsHtml, LOOKUP_ID_DISCOGS, true);
+        ->generate(true), "Uses Discogs.com" . $discogsSettingsHtml, LOOKUP_ID_DISCOGS);
 
-    $result["id" . LOOKUP_ID_OPENAI] = $html->addListItem((new CheckBoxBuilder(
+    $result["id" . LOOKUP_ID_OPENAI] = $buildProviderListItem((new CheckBoxBuilder(
         "LOOKUP_USE_OPENAI",
         "OpenAI (ChatGPT)",
         $config["LOOKUP_USE_OPENAI"],
@@ -588,12 +599,12 @@ function getProviderListItems(UiEditor $html): array {
                     setOpenAiOptionsEnabled(element.checked);
                 }
             }")
-        ->generate(true), "Uses OpenAI ChatGPT API for barcode name lookup" . $openAiSettingsHtml, LOOKUP_ID_OPENAI, true);
+        ->generate(true), "Uses OpenAI ChatGPT API for barcode name lookup" . $openAiSettingsHtml, LOOKUP_ID_OPENAI);
 
     $bbServerSubtitle                    = "Uses " . BarcodeFederation::HOST_READABLE;
     if (!$config["BBUDDY_SERVER_ENABLED"])
         $bbServerSubtitle = "Enable Federation for this feature";
-    $result["id" . LOOKUP_ID_FEDERATION] = $html->addListItem($html->addCheckbox('LOOKUP_USE_BBUDDY_SERVER', 'Barcode Buddy Federation', $config["LOOKUP_USE_BBUDDY_SERVER"], !$config["BBUDDY_SERVER_ENABLED"], false, true), $bbServerSubtitle, LOOKUP_ID_FEDERATION, true);
+    $result["id" . LOOKUP_ID_FEDERATION] = $buildProviderListItem($html->addCheckbox('LOOKUP_USE_BBUDDY_SERVER', 'Barcode Buddy Federation', $config["LOOKUP_USE_BBUDDY_SERVER"], !$config["BBUDDY_SERVER_ENABLED"], false, true), $bbServerSubtitle, LOOKUP_ID_FEDERATION);
     return $result;
 }
 
