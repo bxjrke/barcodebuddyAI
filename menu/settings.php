@@ -133,56 +133,66 @@ function getHtmlSettingsExtendedCreateMode(): string {
     $config = BBConfig::getInstance();
     $html   = new UiEditor(true, null, "settingsExtendedCreate");
 
-    $html->addHtml('<div style="border:1px solid #ddd; border-radius:6px; padding:12px; margin-bottom:12px;">');
-    $html->addHtml('<b>1) Mode</b><br><small>Enable extended product-create logic and optional dry-run safety.</small>');
-    $html->addLineBreak();
-    $html->addCheckbox("EXT_CREATE_MODE_ENABLED", "Enable Extended Create Mode", $config["EXT_CREATE_MODE_ENABLED"], false, false);
-    $html->addCheckbox("EXT_CREATE_DRY_RUN", "Dry run mode (preview only, no create)", $config["EXT_CREATE_DRY_RUN"], false, false);
-    $html->addCheckbox("EXT_CREATE_AUTO_ASSIGN_LOCATION_AI", "Allow AI location suggestion when no manual category mapping exists", $config["EXT_CREATE_AUTO_ASSIGN_LOCATION_AI"], false, false);
-    $html->addHtml('</div>');
-    $lastSync = $config["EXT_CREATE_GROCY_META_LAST_SYNC"];
-    if ($lastSync == null || $lastSync == "0") {
-        $lastSync = "never";
-    }
-    $html->addHtml('<div style="border:1px solid #ddd; border-radius:6px; padding:12px; margin-bottom:12px;">');
-    $html->addHtml('<b>2) Grocy metadata</b><br><small>Load categories, locations and quantity units from Grocy.</small><br>');
-    $html->addHtml('<small>Last sync: <span id="grocyMetaLastSync">' . sanitizeString($lastSync) . '</span></small><br>');    $syncButton = $html->buildButton("syncGrocyMetaBtn", "Sync now")
-        ->setId("syncGrocyMetaBtn")
-        ->setOnClick("return syncGrocyExtendedMeta();")
-        ->setRaised(true)
-        ->setIsAccent(true)
-        ->generate(true);
-    $html->addHtml($syncButton);
-    $html->addHtml('<div id="grocyMetaSyncStatus" style="display:none; margin-top:8px; font-weight:600;"></div>');
-    $html->addLineBreak();
+    $categoriesRaw = json_decode($config["EXT_CREATE_GROCY_CATEGORIES"] ?? "[]", true);
+    $locationsRaw = json_decode($config["EXT_CREATE_GROCY_LOCATIONS"] ?? "[]", true);
+    $unitsRaw = json_decode($config["EXT_CREATE_GROCY_UNITS"] ?? "[]", true);
 
-    $html->addLineBreak();
-    $html->addHtml('<b>Mapping override (category -> location)</b><br><small>One mapping per line: Category Name = Location Name. Manual mapping wins over AI.</small>');
-    $map = $config["EXT_CREATE_CATEGORY_LOCATION_MAP"] ?? "";
-    $html->addHtml('<textarea id="EXT_CREATE_CATEGORY_LOCATION_MAP" name="EXT_CREATE_CATEGORY_LOCATION_MAP" style="width:100%; min-height:140px;" placeholder="Sweets = Süßigkeiten Schrank&#10;Frozen = Gefrierschrank">' . sanitizeString($map) . '</textarea>');
-    $html->addLineBreak();
-
-    $categories = decodeMetaNames($config["EXT_CREATE_GROCY_CATEGORIES"]);
-    $locations = decodeMetaNames($config["EXT_CREATE_GROCY_LOCATIONS"]);
-    $units = decodeMetaNames($config["EXT_CREATE_GROCY_UNITS"]);
-    $html->addHtml('<small>Cached in BarcodeBuddy: ' . count($categories) . ' categories, ' . count($locations) . ' locations, ' . count($units) . ' units.</small>');
-    if (count($categories) > 0) {
-        $html->addHtml('<details style="margin-top:8px;"><summary>Show cached categories/locations/units</summary>');
-        $html->addHtml('<div style="display:flex; gap:20px; flex-wrap:wrap; margin-top:8px;">'
-            . '<div><b>Categories</b><br><small>' . sanitizeString(implode(", ", $categories)) . '</small></div>'
-            . '<div><b>Locations</b><br><small>' . sanitizeString(implode(", ", $locations)) . '</small></div>'
-            . '<div><b>Units</b><br><small>' . sanitizeString(implode(", ", $units)) . '</small></div>'
-            . '</div>');
-        $html->addHtml('</details>');
-    }
-    $html->addHtml('</div>');
-
-    $html->addHtml('<div style="border:1px solid #ddd; border-radius:6px; padding:12px; margin-bottom:12px;">');
-    $html->addHtml('<b>3) Product creation preview</b><br><small>Preview how category / location / unit / shelf life would be resolved.</small>');
+    $categories = extractMetaNamesForMatching($categoriesRaw);
+    $locations = extractMetaNamesForMatching($locationsRaw);
+    $units = extractMetaNamesForMatching($unitsRaw);
 
     $defaultBarcode = $config["EXT_CREATE_DRYRUN_DEFAULT_BARCODE"] ?? "4306188348191";
     $defaultName = $config["EXT_CREATE_DRYRUN_DEFAULT_NAME"] ?? "Jeden Tag Schokoladen Schaumküsse 300g";
 
+    $lastSync = $config["EXT_CREATE_GROCY_META_LAST_SYNC"];
+    if ($lastSync == null || $lastSync == "0") {
+        $lastSync = "never";
+    }
+
+    $html->addCheckbox("EXT_CREATE_MODE_ENABLED", "Enable Extended Create Mode", $config["EXT_CREATE_MODE_ENABLED"], false, false);
+    $html->addCheckbox("EXT_CREATE_DRY_RUN", "Dry run mode (preview only, no create)", $config["EXT_CREATE_DRY_RUN"], false, false);
+    $html->addHiddenField("EXT_CREATE_AUTO_ASSIGN_LOCATION_AI", "0");
+
+    $html->addHtml('<div id="extendedCreateSettingsBody" style="display:' . (($config["EXT_CREATE_MODE_ENABLED"] == "1") ? "block" : "none") . ';">');
+
+    $html->addHtml('<div style="border:1px solid #ddd; border-radius:6px; padding:12px; margin:12px 0;">');
+    $html->addHtml('<b>Grocy metadata</b><br><small>Categories: ' . count($categories) . ' | Locations: ' . count($locations) . ' | Units: ' . count($units) . '</small><br>');
+    $html->addHtml('<small>Last sync: <span id="grocyMetaLastSync">' . sanitizeString($lastSync) . '</span></small><br>');
+    $html->addHtml('<button type="button" id="syncGrocyMetaBtn" class="mdl-button mdl-js-button mdl-button--raised mdl-button--accent" onclick="return syncGrocyExtendedMeta();">Sync now</button>');
+    $html->addHtml('<div id="grocyMetaSyncStatus" style="display:none; margin-top:8px; font-weight:600;"></div>');
+
+    $existingMap = parseCategoryLocationMapping($config["EXT_CREATE_CATEGORY_LOCATION_MAP"] ?? "");
+    $html->addLineBreak();
+    $html->addHtml('<b>Category -> default location mapping</b><br><small>Choose one default location per category.</small>');
+    $html->addHtml('<input type="hidden" id="EXT_CREATE_CATEGORY_LOCATION_MAP" name="EXT_CREATE_CATEGORY_LOCATION_MAP" value="' . sanitizeString($config["EXT_CREATE_CATEGORY_LOCATION_MAP"] ?? "") . '">');
+
+    if (count($categories) > 0 && count($locations) > 0) {
+        $tableHtml = '<table style="width:100%; border-collapse:collapse; margin-top:8px;">';
+        $tableHtml .= '<tr><th style="text-align:left; border-bottom:1px solid #ddd; padding:6px;">Category</th><th style="text-align:left; border-bottom:1px solid #ddd; padding:6px;">Default location</th></tr>';
+        foreach ($categories as $catName) {
+            $mapped = $existingMap[strtolower($catName)] ?? "";
+            $tableHtml .= '<tr>';
+            $tableHtml .= '<td style="padding:6px; border-bottom:1px solid #f0f0f0;">' . sanitizeString($catName) . '</td>';
+            $tableHtml .= '<td style="padding:6px; border-bottom:1px solid #f0f0f0;">';
+            $tableHtml .= '<select class="ext-map-location" data-category="' . sanitizeString($catName) . '" style="width:100%; max-width:360px; padding:6px;">';
+            $tableHtml .= '<option value="">(no override)</option>';
+            foreach ($locations as $locName) {
+                $selected = (strcasecmp($locName, $mapped) === 0) ? ' selected' : '';
+                $tableHtml .= '<option value="' . sanitizeString($locName) . '"' . $selected . '>' . sanitizeString($locName) . '</option>';
+            }
+            $tableHtml .= '</select>';
+            $tableHtml .= '</td></tr>';
+        }
+        $tableHtml .= '</table>';
+        $html->addHtml($tableHtml);
+    } else {
+        $html->addHtml('<small>No metadata available yet. Click "Sync now" first.</small>');
+    }
+
+    $html->addHtml('</div>');
+
+    $html->addHtml('<div style="border:1px solid #ddd; border-radius:6px; padding:12px; margin:12px 0;">');
+    $html->addHtml('<b>Test</b><br><small>Preview how values would be resolved for a product.</small>');
     $html->addHtml((new EditFieldBuilder('EXT_CREATE_DRYRUN_BARCODE', 'Barcode', $defaultBarcode, $html))
         ->pattern('[0-9A-Za-z\-]{3,30}')
         ->generate(true)
@@ -191,24 +201,40 @@ function getHtmlSettingsExtendedCreateMode(): string {
         ->pattern('.{2,120}')
         ->generate(true)
     );
-    $dryRunButton = $html->buildButton("runExtendedCreateDryRunBtn", "Calculate preview")
-        ->setId("runExtendedCreateDryRunBtn")
-        ->setOnClick("return runExtendedCreateDryRun(false);")
-        ->setRaised(true)
-        ->setIsAccent(true)
-        ->generate(true);
-    $createButton = $html->buildButton("createExtendedProductBtn", "Create in Grocy")
-        ->setId("createExtendedProductBtn")
-        ->setOnClick("return runExtendedCreateDryRun(true);")
-        ->setRaised(true)
-        ->generate(true);
-    $html->addHtml('<div style="display:flex; gap:10px; flex-wrap:wrap;">' . $dryRunButton . $createButton . '</div>');
+    $html->addHtml('<button type="button" id="runExtendedCreateDryRunBtn" class="mdl-button mdl-js-button mdl-button--raised mdl-button--accent" onclick="return runExtendedCreateDryRun(false);">Test</button>');
     $html->addHtml('<div id="extendedCreateDryRunStatus" style="display:none; margin-top:8px; font-weight:600;"></div>');
     $html->addHtml('<pre id="extendedCreateDryRunResult" style="display:none; white-space:pre-wrap; margin-top:8px; background:#f3f4f6; border:1px solid #d6d8dc; border-radius:4px; padding:10px;"></pre>');
     $html->addHtml('</div>');
 
+    $html->addHtml('</div>');
+
     $html->addLineBreak();
     $html->addHtml("<script>
+        function serializeCategoryLocationMap() {
+            var hidden = document.getElementById('EXT_CREATE_CATEGORY_LOCATION_MAP');
+            if (!hidden) return;
+            var rows = document.querySelectorAll('.ext-map-location');
+            var parts = [];
+            for (var i = 0; i < rows.length; i++) {
+                var sel = rows[i];
+                if (sel.value && sel.value.trim() !== '') {
+                    var cat = (sel.getAttribute('data-category') || '').trim();
+                    parts.push(cat + ' = ' + sel.value.trim());
+                }
+            }
+            hidden.value = parts.join('\n');
+        }
+
+        document.addEventListener('change', function(ev) {
+            if (ev.target && ev.target.classList && ev.target.classList.contains('ext-map-location')) {
+                serializeCategoryLocationMap();
+            }
+            if (ev.target && ev.target.id === 'EXT_CREATE_MODE_ENABLED') {
+                var body = document.getElementById('extendedCreateSettingsBody');
+                if (body) body.style.display = ev.target.checked ? 'block' : 'none';
+            }
+        });
+
         function syncGrocyExtendedMeta() {
             var btn = document.getElementById('syncGrocyMetaBtn');
             var status = document.getElementById('grocyMetaSyncStatus');
@@ -235,7 +261,7 @@ function getHtmlSettingsExtendedCreateMode(): string {
                     var data = JSON.parse(xhr.responseText);
                     if (data.ok) {
                         status.style.color = 'green';
-                        status.textContent = 'Synced: ' + data.categories + ' categories, ' + data.locations + ' locations, ' + data.units + ' units';
+                        status.textContent = 'Synced: ' + data.categories + ' categories, ' + data.locations + ' locations, ' + data.units + ' units. Reload page to refresh mapping table.';
                         var lastSync = document.getElementById('grocyMetaLastSync');
                         if (lastSync && data.last_sync) lastSync.textContent = data.last_sync;
                     } else {
@@ -252,8 +278,9 @@ function getHtmlSettingsExtendedCreateMode(): string {
         }
 
         function runExtendedCreateDryRun(doCreate) {
+            serializeCategoryLocationMap();
+
             var btn = document.getElementById('runExtendedCreateDryRunBtn');
-            var createBtn = document.getElementById('createExtendedProductBtn');
             var status = document.getElementById('extendedCreateDryRunStatus');
             var result = document.getElementById('extendedCreateDryRunResult');
             var barcode = document.getElementById('EXT_CREATE_DRYRUN_BARCODE');
@@ -269,11 +296,10 @@ function getHtmlSettingsExtendedCreateMode(): string {
             }
 
             if (btn) btn.disabled = true;
-            if (createBtn) createBtn.disabled = true;
             if (status) {
                 status.style.display = 'block';
                 status.style.color = '#555';
-                status.textContent = doCreate ? 'Creating product...' : 'Calculating preview...';
+                status.textContent = 'Calculating test...';
             }
             if (result) {
                 result.style.display = 'block';
@@ -287,7 +313,6 @@ function getHtmlSettingsExtendedCreateMode(): string {
             xhr.onreadystatechange = function() {
                 if (xhr.readyState !== 4) return;
                 if (btn) btn.disabled = false;
-                if (createBtn) createBtn.disabled = false;
                 if (xhr.status !== 200) {
                     if (status) {
                         status.style.color = 'red';
@@ -305,13 +330,8 @@ function getHtmlSettingsExtendedCreateMode(): string {
                         return;
                     }
                     if (status) {
-                        if (doCreate && data.create_error) {
-                            status.style.color = 'red';
-                            status.textContent = data.create_error;
-                        } else {
-                            status.style.color = 'green';
-                            status.textContent = data.created ? 'Product created in Grocy' : 'Preview calculated';
-                        }
+                        status.style.color = 'green';
+                        status.textContent = 'Test calculated';
                     }
                     if (result) {
                         var r = data.resolved || {};
@@ -319,37 +339,31 @@ function getHtmlSettingsExtendedCreateMode(): string {
                         var loc = (r.location && r.location.value) ? r.location.value : '—';
                         var unit = (r.unit && r.unit.value) ? r.unit.value : '—';
                         var mhd = (r.default_shelf_life_days && r.default_shelf_life_days.value !== null) ? r.default_shelf_life_days.value + ' days' : '—';
+                        var sourceMap = { 'ai': 'AI suggestion', 'manual_mapping': 'Category mapping', 'fallback': 'Fallback', 'missing': 'Missing' };
+                        var src = function(v){ return sourceMap[v] || v || '—'; };
                         var catSrc = (r.category && r.category.source) ? r.category.source : '—';
                         var locSrc = (r.location && r.location.source) ? r.location.source : '—';
                         var unitSrc = (r.unit && r.unit.source) ? r.unit.source : '—';
                         var mhdSrc = (r.default_shelf_life_days && r.default_shelf_life_days.source) ? r.default_shelf_life_days.source : '—';
 
-                        var sourceMap = {
-                            'ai': 'AI suggestion',
-                            'manual_mapping': 'Manual mapping',
-                            'fallback': 'Fallback',
-                            'missing': 'Missing'
-                        };
-                        var src = function(v){ return sourceMap[v] || v || '—'; };
-
                         result.textContent =
                             'Category: ' + cat + '  (' + src(catSrc) + ')\n'
                             + 'Location: ' + loc + '  (' + src(locSrc) + ')\n'
-                            + 'Unit:     ' + unit + '  (' + src(unitSrc) + ')\n'
-                            + 'Shelf life: ' + mhd + '  (' + src(mhdSrc) + ')'
-                            + (data.created_product_id ? ('\nCreated product id: ' + data.created_product_id) : '')
-                            + (data.create_error ? ('\nCreate error: ' + data.create_error) : '');
+                            + 'Unit: ' + unit + '  (' + src(unitSrc) + ')\n'
+                            + 'Shelf life: ' + mhd + '  (' + src(mhdSrc) + ')';
                     }
                 } catch (e) {
                     if (status) {
                         status.style.color = 'red';
-                        status.textContent = 'Dry run failed (invalid response)';
+                        status.textContent = 'Request failed (invalid response)';
                     }
                 }
             };
             xhr.send(params);
             return false;
         }
+
+        serializeCategoryLocationMap();
     </script>");
 
     return $html->getHtml();
