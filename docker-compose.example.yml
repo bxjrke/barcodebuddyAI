@@ -1,0 +1,19 @@
+services:
+  barcodebuddy:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: bxjrke/barcodebuddyai:dev
+    container_name: barcodebuddyai
+    restart: unless-stopped
+    volumes:
+      - ./config:/config
+    environment:
+      - TZ=Europe/Berlin
+    networks:
+      - proxy
+    # Kein Host-Port: externen Zugriff über Reverse Proxy (NPM) routen.
+
+networks:
+  proxy:
+    external: true

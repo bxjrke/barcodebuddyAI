@@ -63,6 +63,24 @@ Help translate the project on [Hosted Weblate](https://hosted.weblate.org/engage
 * [NoSleep.js](https://github.com/richtr/NoSleep.js)
 * [SortableJS](https://github.com/SortableJS/Sortable)
 
+## Personal Fork Notes
+
+This fork contains custom work for a personal setup.
+
+### Build your own image
+
+```bash
+docker build -t bxjrke/barcodebuddyai:dev .
+```
+
+### Run (example)
+
+```bash
+docker compose -f docker-compose.example.yml up -d --build
+```
+
+See `FORK_GOALS.md` for roadmap and planned customizations.
+
 ## License
 
 This project is AGPL3+ licensed — browse the [LICENSE.md](LICENSE.md) file for details
