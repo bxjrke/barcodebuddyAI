@@ -222,7 +222,7 @@ function getHtmlSettingsExtendedCreateMode(): string {
                     parts.push(cat + ' = ' + sel.value.trim());
                 }
             }
-            hidden.value = parts.join('\n');
+            hidden.value = parts.join('\\n');
         }
 
         document.addEventListener('change', function(ev) {
