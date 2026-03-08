@@ -178,35 +178,31 @@ function getHtmlSettingsExtendedCreateMode(): string {
     $html->addHtml('</div>');
 
     $html->addHtml('<div style="border:1px solid #ddd; border-radius:6px; padding:12px; margin-bottom:12px;">');
-    $html->addHtml('<b>3) Vorschau Produktanlage</b><br><small>Teste, wie Kategorie / Lagerort / Einheit / MHD für ein Produkt gesetzt würden.</small>');
+    $html->addHtml('<b>3) Product creation preview</b><br><small>Preview how category / location / unit / shelf life would be resolved.</small>');
 
     $defaultBarcode = $config["EXT_CREATE_DRYRUN_DEFAULT_BARCODE"] ?? "4306188348191";
     $defaultName = $config["EXT_CREATE_DRYRUN_DEFAULT_NAME"] ?? "Jeden Tag Schokoladen Schaumküsse 300g";
-    $html->addHtml((new EditFieldBuilder('EXT_CREATE_DRYRUN_DEFAULT_BARCODE', 'Standard Barcode (Vorschau)', $defaultBarcode, $html))
-        ->pattern('[0-9A-Za-z\-]{3,30}')
-        ->generate(true)
-    );
-    $html->addHtml((new EditFieldBuilder('EXT_CREATE_DRYRUN_DEFAULT_NAME', 'Standard Produktname (Vorschau)', $defaultName, $html))
-        ->pattern('.{2,120}')
-        ->generate(true)
-    );
-    $html->addLineBreak();
 
     $html->addHtml((new EditFieldBuilder('EXT_CREATE_DRYRUN_BARCODE', 'Barcode', $defaultBarcode, $html))
         ->pattern('[0-9A-Za-z\-]{3,30}')
         ->generate(true)
     );
-    $html->addHtml((new EditFieldBuilder('EXT_CREATE_DRYRUN_NAME', 'Produktname', $defaultName, $html))
+    $html->addHtml((new EditFieldBuilder('EXT_CREATE_DRYRUN_NAME', 'Product name', $defaultName, $html))
         ->pattern('.{2,120}')
         ->generate(true)
     );
-    $dryRunButton = $html->buildButton("runExtendedCreateDryRunBtn", "Vorschau berechnen")
+    $dryRunButton = $html->buildButton("runExtendedCreateDryRunBtn", "Calculate preview")
         ->setId("runExtendedCreateDryRunBtn")
-        ->setOnClick("return runExtendedCreateDryRun();")
+        ->setOnClick("return runExtendedCreateDryRun(false);")
         ->setRaised(true)
         ->setIsAccent(true)
         ->generate(true);
-    $html->addHtml($dryRunButton);
+    $createButton = $html->buildButton("createExtendedProductBtn", "Create in Grocy")
+        ->setId("createExtendedProductBtn")
+        ->setOnClick("return runExtendedCreateDryRun(true);")
+        ->setRaised(true)
+        ->generate(true);
+    $html->addHtml('<div style="display:flex; gap:10px; flex-wrap:wrap;">' . $dryRunButton . $createButton . '</div>');
     $html->addHtml('<div id="extendedCreateDryRunStatus" style="display:none; margin-top:8px; font-weight:600;"></div>');
     $html->addHtml('<pre id="extendedCreateDryRunResult" style="display:none; white-space:pre-wrap; margin-top:8px; background:#f3f4f6; border:1px solid #d6d8dc; border-radius:4px; padding:10px;"></pre>');
     $html->addHtml('</div>');
@@ -255,8 +251,9 @@ function getHtmlSettingsExtendedCreateMode(): string {
             return false;
         }
 
-        function runExtendedCreateDryRun() {
+        function runExtendedCreateDryRun(doCreate) {
             var btn = document.getElementById('runExtendedCreateDryRunBtn');
+            var createBtn = document.getElementById('createExtendedProductBtn');
             var status = document.getElementById('extendedCreateDryRunStatus');
             var result = document.getElementById('extendedCreateDryRunResult');
             var barcode = document.getElementById('EXT_CREATE_DRYRUN_BARCODE');
@@ -266,33 +263,35 @@ function getHtmlSettingsExtendedCreateMode(): string {
                 if (status) {
                     status.style.display = 'block';
                     status.style.color = 'red';
-                    status.textContent = 'Bitte Barcode und Produktname ausfüllen';
+                    status.textContent = 'Please provide barcode and product name';
                 }
                 return false;
             }
 
             if (btn) btn.disabled = true;
+            if (createBtn) createBtn.disabled = true;
             if (status) {
                 status.style.display = 'block';
                 status.style.color = '#555';
-                status.textContent = 'Running dry run...';
+                status.textContent = doCreate ? 'Creating product...' : 'Calculating preview...';
             }
             if (result) {
                 result.style.display = 'block';
                 result.textContent = '';
             }
 
-            var params = 'extended_create_dry_run=1&barcode=' + encodeURIComponent(barcode.value) + '&name=' + encodeURIComponent(name.value);
+            var params = 'extended_create_dry_run=1&barcode=' + encodeURIComponent(barcode.value) + '&name=' + encodeURIComponent(name.value) + '&create=' + (doCreate ? '1' : '0');
             var xhr = new XMLHttpRequest();
             xhr.open('POST', window.location.href, true);
             xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded; charset=UTF-8');
             xhr.onreadystatechange = function() {
                 if (xhr.readyState !== 4) return;
                 if (btn) btn.disabled = false;
+                if (createBtn) createBtn.disabled = false;
                 if (xhr.status !== 200) {
                     if (status) {
                         status.style.color = 'red';
-                        status.textContent = 'Dry run failed (HTTP ' + xhr.status + ')';
+                        status.textContent = 'Request failed (HTTP ' + xhr.status + ')';
                     }
                     return;
                 }
@@ -301,30 +300,45 @@ function getHtmlSettingsExtendedCreateMode(): string {
                     if (!data.ok) {
                         if (status) {
                             status.style.color = 'red';
-                            status.textContent = data.error || 'Dry run failed';
+                            status.textContent = data.error || 'Request failed';
                         }
                         return;
                     }
                     if (status) {
-                        status.style.color = 'green';
-                        status.textContent = 'Vorschau erstellt';
+                        if (doCreate && data.create_error) {
+                            status.style.color = 'red';
+                            status.textContent = data.create_error;
+                        } else {
+                            status.style.color = 'green';
+                            status.textContent = data.created ? 'Product created in Grocy' : 'Preview calculated';
+                        }
                     }
                     if (result) {
                         var r = data.resolved || {};
                         var cat = (r.category && r.category.value) ? r.category.value : '—';
                         var loc = (r.location && r.location.value) ? r.location.value : '—';
                         var unit = (r.unit && r.unit.value) ? r.unit.value : '—';
-                        var mhd = (r.default_shelf_life_days && r.default_shelf_life_days.value !== null) ? r.default_shelf_life_days.value + ' Tage' : '—';
+                        var mhd = (r.default_shelf_life_days && r.default_shelf_life_days.value !== null) ? r.default_shelf_life_days.value + ' days' : '—';
                         var catSrc = (r.category && r.category.source) ? r.category.source : '—';
                         var locSrc = (r.location && r.location.source) ? r.location.source : '—';
                         var unitSrc = (r.unit && r.unit.source) ? r.unit.source : '—';
                         var mhdSrc = (r.default_shelf_life_days && r.default_shelf_life_days.source) ? r.default_shelf_life_days.source : '—';
 
+                        var sourceMap = {
+                            'ai': 'AI suggestion',
+                            'manual_mapping': 'Manual mapping',
+                            'fallback': 'Fallback',
+                            'missing': 'Missing'
+                        };
+                        var src = function(v){ return sourceMap[v] || v || '—'; };
+
                         result.textContent =
-                            'Kategorie: ' + cat + '  (' + catSrc + ')\n'
-                            + 'Lagerort: ' + loc + '  (' + locSrc + ')\n'
-                            + 'Einheit:   ' + unit + '  (' + unitSrc + ')\n'
-                            + 'MHD:       ' + mhd + '  (' + mhdSrc + ')';
+                            'Category: ' + cat + '  (' + src(catSrc) + ')\n'
+                            + 'Location: ' + loc + '  (' + src(locSrc) + ')\n'
+                            + 'Unit:     ' + unit + '  (' + src(unitSrc) + ')\n'
+                            + 'Shelf life: ' + mhd + '  (' + src(mhdSrc) + ')'
+                            + (data.created_product_id ? ('\nCreated product id: ' + data.created_product_id) : '')
+                            + (data.create_error ? ('\nCreate error: ' + data.create_error) : '');
                     }
                 } catch (e) {
                     if (status) {
@@ -392,6 +406,8 @@ function runExtendedCreateDryRun(): void {
 
     $barcode = trim(strval($_POST["barcode"] ?? ""));
     $name = trim(strval($_POST["name"] ?? ""));
+    $create = (($_POST["create"] ?? "0") === "1");
+
     if ($barcode === "" || $name === "") {
         echo json_encode(array("ok" => false, "error" => "Missing barcode or product name"));
         return;
@@ -449,13 +465,48 @@ function runExtendedCreateDryRun(): void {
         $shelfLife = intval($aiSuggestion["default_shelf_life_days"]);
     }
 
+    $categoryId = resolveMetaIdByName($resolvedCategory, $categoriesRaw);
+    $locationId = resolveMetaIdByName($resolvedLocation, $locationsRaw);
+    $unitId = resolveMetaIdByName($resolvedUnit, $unitsRaw);
+
+    $created = false;
+    $createdProductId = null;
+    $createError = null;
+
+    if ($create) {
+        if ($config["EXT_CREATE_DRY_RUN"] == "1") {
+            $createError = "Dry run mode is enabled. Disable EXT_CREATE_DRY_RUN to create products.";
+        } else if ($categoryId === null || $locationId === null || $unitId === null) {
+            $createError = "Cannot create product. Missing resolved category/location/unit IDs.";
+        } else {
+            $payload = array(
+                "name" => $name,
+                "barcode" => $barcode,
+                "product_group_id" => intval($categoryId),
+                "location_id" => intval($locationId),
+                "qu_id_purchase" => intval($unitId),
+                "default_best_before_days" => ($shelfLife !== null ? intval($shelfLife) : -1),
+            );
+
+            $createdProductId = API::createExtendedProduct($payload);
+            if ($createdProductId !== null) {
+                $created = true;
+            } else {
+                $createError = "Grocy create request failed";
+            }
+        }
+    }
+
     echo json_encode(array(
         "ok" => true,
+        "created" => $created,
+        "created_product_id" => $createdProductId,
+        "create_error" => $createError,
         "input" => array("barcode" => $barcode, "name" => $name),
         "resolved" => array(
-            "category" => array("value" => $resolvedCategory, "source" => ($resolvedCategory != null ? "ai" : "missing")),
-            "location" => array("value" => $resolvedLocation, "source" => $locationSource),
-            "unit" => array("value" => $resolvedUnit, "source" => ($resolvedUnit != null ? "ai" : "missing")),
+            "category" => array("value" => $resolvedCategory, "source" => ($resolvedCategory != null ? "ai" : "missing"), "id" => $categoryId),
+            "location" => array("value" => $resolvedLocation, "source" => $locationSource, "id" => $locationId),
+            "unit" => array("value" => $resolvedUnit, "source" => ($resolvedUnit != null ? "ai" : "missing"), "id" => $unitId),
             "default_shelf_life_days" => array("value" => $shelfLife, "source" => ($shelfLife !== null ? "ai" : "missing")),
         ),
         "ai_suggestion" => $aiSuggestion,
@@ -496,6 +547,22 @@ function resolveFromAllowedList(?string $value, array $allowed): ?string {
     foreach ($allowed as $item) {
         if (strcasecmp(trim($item), trim($value)) === 0) {
             return $item;
+        }
+    }
+    return null;
+}
+
+function resolveMetaIdByName(?string $name, $rawMeta): ?int {
+    if ($name == null || !is_array($rawMeta)) {
+        return null;
+    }
+    foreach ($rawMeta as $row) {
+        if (!is_array($row) || !isset($row["id"]) || !isset($row["name"])) {
+            continue;
+        }
+        $rowName = html_entity_decode(strval($row["name"]), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        if (strcasecmp(trim($rowName), trim($name)) === 0) {
+            return intval($row["id"]);
         }
     }
     return null;

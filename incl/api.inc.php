@@ -252,6 +252,29 @@ class API {
         return $items;
     }
 
+    /**
+     * Create product with extended payload.
+     * Returns created product id, or null on failure.
+     *
+     * @param array $payload
+     * @return int|null
+     */
+    public static function createExtendedProduct(array $payload): ?int {
+        $curl = new CurlGenerator(API_O_PRODUCTS, METHOD_POST, null, null, true, array(CURL_HTTP_STATUS_INTERNAL_SERVER_ERROR));
+        try {
+            $result = $curl->execute(true, $payload);
+        } catch (Exception $e) {
+            self::processError($e, "Could not create Grocy product");
+            return null;
+        }
+
+        if (!is_array($result) || !isset($result["created_object_id"])) {
+            self::logError("Could not create Grocy product (invalid response)");
+            return null;
+        }
+        return intval($result["created_object_id"]);
+    }
+
 
     /**
      * Open product with $id
