@@ -246,7 +246,7 @@ class API {
             }
             $items[] = array(
                 "id" => strval($row["id"]),
-                "name" => sanitizeString($row["name"])
+                "name" => strval($row["name"])
             );
         }
         return $items;

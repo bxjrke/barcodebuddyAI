@@ -178,18 +178,29 @@ function getHtmlSettingsExtendedCreateMode(): string {
     $html->addHtml('</div>');
 
     $html->addHtml('<div style="border:1px solid #ddd; border-radius:6px; padding:12px; margin-bottom:12px;">');
-    $html->addHtml('<b>3) Dry-run mapping preview</b><br><small>Test how Extended Create resolves values (manual mapping + AI fallback).</small>');
-    $prefillBarcode = $config["LAST_BARCODE"] ?? "";
-    $prefillName = $config["LAST_PRODUCT"] ?? "";
-    $html->addHtml((new EditFieldBuilder('EXT_CREATE_DRYRUN_BARCODE', 'Barcode for dry run', $prefillBarcode, $html))
+    $html->addHtml('<b>3) Vorschau Produktanlage</b><br><small>Teste, wie Kategorie / Lagerort / Einheit / MHD für ein Produkt gesetzt würden.</small>');
+
+    $defaultBarcode = $config["EXT_CREATE_DRYRUN_DEFAULT_BARCODE"] ?? "4306188348191";
+    $defaultName = $config["EXT_CREATE_DRYRUN_DEFAULT_NAME"] ?? "Jeden Tag Schokoladen Schaumküsse 300g";
+    $html->addHtml((new EditFieldBuilder('EXT_CREATE_DRYRUN_DEFAULT_BARCODE', 'Standard Barcode (Vorschau)', $defaultBarcode, $html))
         ->pattern('[0-9A-Za-z\-]{3,30}')
         ->generate(true)
     );
-    $html->addHtml((new EditFieldBuilder('EXT_CREATE_DRYRUN_NAME', 'Product name for dry run', $prefillName, $html))
+    $html->addHtml((new EditFieldBuilder('EXT_CREATE_DRYRUN_DEFAULT_NAME', 'Standard Produktname (Vorschau)', $defaultName, $html))
         ->pattern('.{2,120}')
         ->generate(true)
     );
-    $dryRunButton = $html->buildButton("runExtendedCreateDryRunBtn", "Run dry run")
+    $html->addLineBreak();
+
+    $html->addHtml((new EditFieldBuilder('EXT_CREATE_DRYRUN_BARCODE', 'Barcode', $defaultBarcode, $html))
+        ->pattern('[0-9A-Za-z\-]{3,30}')
+        ->generate(true)
+    );
+    $html->addHtml((new EditFieldBuilder('EXT_CREATE_DRYRUN_NAME', 'Produktname', $defaultName, $html))
+        ->pattern('.{2,120}')
+        ->generate(true)
+    );
+    $dryRunButton = $html->buildButton("runExtendedCreateDryRunBtn", "Vorschau berechnen")
         ->setId("runExtendedCreateDryRunBtn")
         ->setOnClick("return runExtendedCreateDryRun();")
         ->setRaised(true)
@@ -255,7 +266,7 @@ function getHtmlSettingsExtendedCreateMode(): string {
                 if (status) {
                     status.style.display = 'block';
                     status.style.color = 'red';
-                    status.textContent = 'Please provide barcode and product name';
+                    status.textContent = 'Bitte Barcode und Produktname ausfüllen';
                 }
                 return false;
             }
@@ -296,10 +307,24 @@ function getHtmlSettingsExtendedCreateMode(): string {
                     }
                     if (status) {
                         status.style.color = 'green';
-                        status.textContent = 'Dry run completed';
+                        status.textContent = 'Vorschau erstellt';
                     }
                     if (result) {
-                        result.textContent = JSON.stringify(data, null, 2);
+                        var r = data.resolved || {};
+                        var cat = (r.category && r.category.value) ? r.category.value : '—';
+                        var loc = (r.location && r.location.value) ? r.location.value : '—';
+                        var unit = (r.unit && r.unit.value) ? r.unit.value : '—';
+                        var mhd = (r.default_shelf_life_days && r.default_shelf_life_days.value !== null) ? r.default_shelf_life_days.value + ' Tage' : '—';
+                        var catSrc = (r.category && r.category.source) ? r.category.source : '—';
+                        var locSrc = (r.location && r.location.source) ? r.location.source : '—';
+                        var unitSrc = (r.unit && r.unit.source) ? r.unit.source : '—';
+                        var mhdSrc = (r.default_shelf_life_days && r.default_shelf_life_days.source) ? r.default_shelf_life_days.source : '—';
+
+                        result.textContent =
+                            'Kategorie: ' + cat + '  (' + catSrc + ')\n'
+                            + 'Lagerort: ' + loc + '  (' + locSrc + ')\n'
+                            + 'Einheit:   ' + unit + '  (' + unitSrc + ')\n'
+                            + 'MHD:       ' + mhd + '  (' + mhdSrc + ')';
                     }
                 } catch (e) {
                     if (status) {
@@ -327,7 +352,7 @@ function decodeMetaNames(?string $json): array {
     $names = array();
     foreach ($decoded as $row) {
         if (is_array($row) && isset($row["name"])) {
-            $names[] = strval($row["name"]);
+            $names[] = html_entity_decode(strval($row["name"]), ENT_QUOTES | ENT_HTML5, 'UTF-8');
         }
     }
     return $names;
@@ -365,9 +390,9 @@ function runExtendedCreateDryRun(): void {
     header('Content-Type: application/json');
     $config = BBConfig::getInstance();
 
-    $barcode = sanitizeString($_POST["barcode"] ?? "");
-    $name = sanitizeString($_POST["name"] ?? "");
-    if ($barcode == null || trim($barcode) === "" || $name == null || trim($name) === "") {
+    $barcode = trim(strval($_POST["barcode"] ?? ""));
+    $name = trim(strval($_POST["name"] ?? ""));
+    if ($barcode === "" || $name === "") {
         echo json_encode(array("ok" => false, "error" => "Missing barcode or product name"));
         return;
     }
@@ -444,7 +469,7 @@ function extractMetaNamesForMatching($raw): array {
     $names = array();
     foreach ($raw as $row) {
         if (is_array($row) && isset($row["name"])) {
-            $names[] = strval($row["name"]);
+            $names[] = html_entity_decode(strval($row["name"]), ENT_QUOTES | ENT_HTML5, 'UTF-8');
         }
     }
     return $names;

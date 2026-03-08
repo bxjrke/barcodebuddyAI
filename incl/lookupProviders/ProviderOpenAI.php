@@ -150,7 +150,7 @@ class ProviderOpenAI extends LookupProvider {
             if (!isset($val) || $val === null) return null;
             $txt = trim(strval($val));
             if ($txt === "" || strtoupper($txt) === "UNKNOWN" || strtolower($txt) === "null") return null;
-            return sanitizeString($txt);
+            return $txt;
         };
 
         $shelfLife = null;

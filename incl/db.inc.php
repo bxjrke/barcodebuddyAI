@@ -126,6 +126,8 @@ class DatabaseConnection {
         "EXT_CREATE_GROCY_LOCATIONS" => "[]",
         "EXT_CREATE_GROCY_UNITS" => "[]",
         "EXT_CREATE_GROCY_META_LAST_SYNC" => "0",
+        "EXT_CREATE_DRYRUN_DEFAULT_BARCODE" => "4306188348191",
+        "EXT_CREATE_DRYRUN_DEFAULT_NAME" => "Jeden Tag Schokoladen Schaumküsse 300g",
         "USE_REDIS" => DEFAULT_USE_REDIS,
         "REDIS_IP" => "127.0.0.1",
         "REDIS_PORT" => "6379",
