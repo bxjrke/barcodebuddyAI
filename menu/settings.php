@@ -133,18 +133,20 @@ function getHtmlSettingsExtendedCreateMode(): string {
     $config = BBConfig::getInstance();
     $html   = new UiEditor(true, null, "settingsExtendedCreate");
 
-    $html->addCheckbox("EXT_CREATE_MODE_ENABLED", "Enable Extended Create Mode", $config["EXT_CREATE_MODE_ENABLED"], false, false);
-    $html->addCheckbox("EXT_CREATE_DRY_RUN", "Dry run mode (show data before product create)", $config["EXT_CREATE_DRY_RUN"], false, false);
-    $html->addCheckbox("EXT_CREATE_AUTO_ASSIGN_LOCATION_AI", "Allow AI to auto-assign location when no manual mapping exists", $config["EXT_CREATE_AUTO_ASSIGN_LOCATION_AI"], false, false);
+    $html->addHtml('<div style="border:1px solid #ddd; border-radius:6px; padding:12px; margin-bottom:12px;">');
+    $html->addHtml('<b>1) Mode</b><br><small>Enable extended product-create logic and optional dry-run safety.</small>');
     $html->addLineBreak();
-
+    $html->addCheckbox("EXT_CREATE_MODE_ENABLED", "Enable Extended Create Mode", $config["EXT_CREATE_MODE_ENABLED"], false, false);
+    $html->addCheckbox("EXT_CREATE_DRY_RUN", "Dry run mode (preview only, no create)", $config["EXT_CREATE_DRY_RUN"], false, false);
+    $html->addCheckbox("EXT_CREATE_AUTO_ASSIGN_LOCATION_AI", "Allow AI location suggestion when no manual category mapping exists", $config["EXT_CREATE_AUTO_ASSIGN_LOCATION_AI"], false, false);
+    $html->addHtml('</div>');
     $lastSync = $config["EXT_CREATE_GROCY_META_LAST_SYNC"];
     if ($lastSync == null || $lastSync == "0") {
         $lastSync = "never";
     }
-    $html->addHtml('<b>Grocy metadata sync</b><br><small>Syncs categories, locations and quantity units from Grocy.</small><br>');
-    $html->addHtml('<small>Last sync: <span id="grocyMetaLastSync">' . sanitizeString($lastSync) . '</span></small><br>');
-    $syncButton = $html->buildButton("syncGrocyMetaBtn", "Sync now")
+    $html->addHtml('<div style="border:1px solid #ddd; border-radius:6px; padding:12px; margin-bottom:12px;">');
+    $html->addHtml('<b>2) Grocy metadata</b><br><small>Load categories, locations and quantity units from Grocy.</small><br>');
+    $html->addHtml('<small>Last sync: <span id="grocyMetaLastSync">' . sanitizeString($lastSync) . '</span></small><br>');    $syncButton = $html->buildButton("syncGrocyMetaBtn", "Sync now")
         ->setId("syncGrocyMetaBtn")
         ->setOnClick("return syncGrocyExtendedMeta();")
         ->setRaised(true)
@@ -154,7 +156,8 @@ function getHtmlSettingsExtendedCreateMode(): string {
     $html->addHtml('<div id="grocyMetaSyncStatus" style="display:none; margin-top:8px; font-weight:600;"></div>');
     $html->addLineBreak();
 
-    $html->addHtml('<b>Category -> location mapping overrides</b><br><small>One mapping per line: Category Name = Location Name</small>');
+    $html->addLineBreak();
+    $html->addHtml('<b>Mapping override (category -> location)</b><br><small>One mapping per line: Category Name = Location Name. Manual mapping wins over AI.</small>');
     $map = $config["EXT_CREATE_CATEGORY_LOCATION_MAP"] ?? "";
     $html->addHtml('<textarea id="EXT_CREATE_CATEGORY_LOCATION_MAP" name="EXT_CREATE_CATEGORY_LOCATION_MAP" style="width:100%; min-height:140px;" placeholder="Sweets = Süßigkeiten Schrank&#10;Frozen = Gefrierschrank">' . sanitizeString($map) . '</textarea>');
     $html->addLineBreak();
@@ -172,14 +175,17 @@ function getHtmlSettingsExtendedCreateMode(): string {
             . '</div>');
         $html->addHtml('</details>');
     }
+    $html->addHtml('</div>');
 
-    $html->addLineBreak();
-    $html->addHtml('<b>Dry-run mapping preview</b><br><small>Test how Extended Create would resolve values (manual mapping + AI fallback).</small>');
-    $html->addHtml((new EditFieldBuilder('EXT_CREATE_DRYRUN_BARCODE', 'Barcode for dry run', '', $html))
+    $html->addHtml('<div style="border:1px solid #ddd; border-radius:6px; padding:12px; margin-bottom:12px;">');
+    $html->addHtml('<b>3) Dry-run mapping preview</b><br><small>Test how Extended Create resolves values (manual mapping + AI fallback).</small>');
+    $prefillBarcode = $config["LAST_BARCODE"] ?? "";
+    $prefillName = $config["LAST_PRODUCT"] ?? "";
+    $html->addHtml((new EditFieldBuilder('EXT_CREATE_DRYRUN_BARCODE', 'Barcode for dry run', $prefillBarcode, $html))
         ->pattern('[0-9A-Za-z\-]{3,30}')
         ->generate(true)
     );
-    $html->addHtml((new EditFieldBuilder('EXT_CREATE_DRYRUN_NAME', 'Product name for dry run', '', $html))
+    $html->addHtml((new EditFieldBuilder('EXT_CREATE_DRYRUN_NAME', 'Product name for dry run', $prefillName, $html))
         ->pattern('.{2,120}')
         ->generate(true)
     );
@@ -192,6 +198,7 @@ function getHtmlSettingsExtendedCreateMode(): string {
     $html->addHtml($dryRunButton);
     $html->addHtml('<div id="extendedCreateDryRunStatus" style="display:none; margin-top:8px; font-weight:600;"></div>');
     $html->addHtml('<pre id="extendedCreateDryRunResult" style="display:none; white-space:pre-wrap; margin-top:8px; background:#f3f4f6; border:1px solid #d6d8dc; border-radius:4px; padding:10px;"></pre>');
+    $html->addHtml('</div>');
 
     $html->addLineBreak();
     $html->addHtml("<script>
