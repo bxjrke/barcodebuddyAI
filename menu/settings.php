@@ -176,6 +176,10 @@ function getHtmlSettingsBarcodeLookup(): string {
     );
     $html->addLineBreak();
     $openAiModelOptions = array(
+        "gpt-5.4" => "gpt-5.4",
+        "gpt-5.4-mini" => "gpt-5.4-mini",
+        "gpt-5.3" => "gpt-5.3",
+        "gpt-5.3-mini" => "gpt-5.3-mini",
         "gpt-5.2" => "gpt-5.2",
         "gpt-5.2-pro" => "gpt-5.2-pro",
         "gpt-5" => "gpt-5",
@@ -230,7 +234,9 @@ function getHtmlSettingsBarcodeLookup(): string {
     $html->addHtml('<div id="openaiLookupTestResult" style="display:block; white-space:pre-wrap; font-family:monospace; background:#f3f4f6; border:1px solid #d6d8dc; border-radius:4px; padding:10px; margin-top:6px; min-height:44px;"></div>');
     $html->addHtml('</div>');
 
+    $upcDbDisplay = ($config["LOOKUP_USE_UPC_DATABASE"] == "1") ? "block" : "none";
     $html->addLineBreak();
+    $html->addHtml('<div id="upcDbApiKeyBox" style="display:' . $upcDbDisplay . ';">');
     $html->addHtml((new EditFieldBuilder(
         'LOOKUP_UPC_DATABASE_KEY',
         'UPCDatabase.org API Key',
@@ -241,7 +247,11 @@ function getHtmlSettingsBarcodeLookup(): string {
         ->disabled(!$config["LOOKUP_USE_UPC_DATABASE"])
         ->generate(true)
     );
+    $html->addHtml('</div>');
+
+    $openGtinDisplay = ($config["LOOKUP_USE_OPEN_GTIN_DATABASE"] == "1") ? "block" : "none";
     $html->addLineBreak();
+    $html->addHtml('<div id="openGtinApiKeyBox" style="display:' . $openGtinDisplay . ';">');
     $html->addHtml((new EditFieldBuilder(
         'LOOKUP_OPENGTIN_KEY',
         'OpenGtinDb.org API Key',
@@ -252,8 +262,11 @@ function getHtmlSettingsBarcodeLookup(): string {
         ->disabled(!$config["LOOKUP_USE_OPEN_GTIN_DATABASE"])
         ->generate(true)
     );
+    $html->addHtml('</div>');
 
+    $discogsDisplay = ($config["LOOKUP_USE_DISCOGS"] == "1") ? "block" : "none";
     $html->addLineBreak();
+    $html->addHtml('<div id="discogsApiKeyBox" style="display:' . $discogsDisplay . ';">');
     $html->addHtml((new EditFieldBuilder(
         'LOOKUP_DISCOGS_TOKEN',
         'discogs.com Access Token',
@@ -264,6 +277,7 @@ function getHtmlSettingsBarcodeLookup(): string {
         ->disabled(!$config["LOOKUP_USE_DISCOGS"])
         ->generate(true)
     );
+    $html->addHtml('</div>');
 
     $html->addHiddenField("LOOKUP_ORDER", $config["LOOKUP_ORDER"]);
 
@@ -303,6 +317,13 @@ function getHtmlSettingsBarcodeLookup(): string {
                                        resultEl.style.display = 'block';
                                        resultEl.textContent = '';
                                    }
+                               }
+                           }
+
+                           function setProviderApiKeyBoxVisibility(boxId, isEnabled) {
+                               var box = document.getElementById(boxId);
+                               if (box) {
+                                   box.style.display = isEnabled ? 'block' : 'none';
                                }
                            }
 
@@ -418,7 +439,10 @@ function getHtmlSettingsBarcodeLookup(): string {
                                return false;
                            }
 
-                           setOpenAiOptionsEnabled(document.getElementById('LOOKUP_USE_OPENAI') && document.getElementById('LOOKUP_USE_OPENAI').checked);");
+                           setOpenAiOptionsEnabled(document.getElementById('LOOKUP_USE_OPENAI') && document.getElementById('LOOKUP_USE_OPENAI').checked);
+                           setProviderApiKeyBoxVisibility('upcDbApiKeyBox', document.getElementById('LOOKUP_USE_UPC_DATABASE') && document.getElementById('LOOKUP_USE_UPC_DATABASE').checked);
+                           setProviderApiKeyBoxVisibility('openGtinApiKeyBox', document.getElementById('LOOKUP_USE_OPEN_GTIN_DATABASE') && document.getElementById('LOOKUP_USE_OPEN_GTIN_DATABASE').checked);
+                           setProviderApiKeyBoxVisibility('discogsApiKeyBox', document.getElementById('LOOKUP_USE_DISCOGS') && document.getElementById('LOOKUP_USE_DISCOGS').checked);");
 
     return $html->getHtml();
 }
@@ -508,7 +532,7 @@ function parseOpenAiRawJsonForTest(?string $raw): ?array {
     );
 }
 
-function generateApiKeyChangeScript(string $functionName, string $keyId): string {
+function generateApiKeyChangeScript(string $functionName, string $keyId, string $boxId): string {
     return "function " . $functionName . "(element) {
                 apiEditField = document.getElementById('" . $keyId . "');
                 if (!apiEditField) {
@@ -520,6 +544,9 @@ function generateApiKeyChangeScript(string $functionName, string $keyId): string
                     } else {
                         apiEditField.parentNode.MaterialTextfield.disable();
                     }
+                }
+                if (typeof setProviderApiKeyBoxVisibility === 'function') {
+                    setProviderApiKeyBoxVisibility('" . $boxId . "', element.checked);
                 }
             }";
 }
@@ -539,7 +566,7 @@ function getProviderListItems(UiEditor $html): array {
         $html)
     )->onCheckChanged(
         "handleUPCDBChange(this)",
-        generateApiKeyChangeScript("handleUPCDBChange", "LOOKUP_UPC_DATABASE_KEY"))
+        generateApiKeyChangeScript("handleUPCDBChange", "LOOKUP_UPC_DATABASE_KEY", "upcDbApiKeyBox"))
         ->generate(true), "Uses UPCDatabase.org", LOOKUP_ID_UPCDATABASE, true);
 
     $result["id" . LOOKUP_ID_OPENGTINDB] = $html->addListItem((new CheckBoxBuilder(
@@ -549,7 +576,7 @@ function getProviderListItems(UiEditor $html): array {
         $html)
     )->onCheckChanged(
         "handleOpenGtinChange(this)",
-        generateApiKeyChangeScript("handleOpenGtinChange", "LOOKUP_OPENGTIN_KEY"))
+        generateApiKeyChangeScript("handleOpenGtinChange", "LOOKUP_OPENGTIN_KEY", "openGtinApiKeyBox"))
         ->generate(true), "Uses OpenGtinDb.org", LOOKUP_ID_OPENGTINDB, true);
 
     $result["id" . LOOKUP_ID_DISCOGS]   = $html->addListItem((new CheckBoxBuilder(
@@ -559,7 +586,7 @@ function getProviderListItems(UiEditor $html): array {
         $html)
     )->onCheckChanged(
         "handleDiscogsChange(this)",
-        generateApiKeyChangeScript("handleDiscogsChange", "LOOKUP_DISCOGS_TOKEN"))
+        generateApiKeyChangeScript("handleDiscogsChange", "LOOKUP_DISCOGS_TOKEN", "discogsApiKeyBox"))
         ->generate(true), "Uses Discogs.com", LOOKUP_ID_DISCOGS, true);
 
     $result["id" . LOOKUP_ID_OPENAI] = $html->addListItem((new CheckBoxBuilder(
