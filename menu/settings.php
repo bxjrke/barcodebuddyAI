@@ -41,6 +41,10 @@ if (isset($_POST["sync_grocy_extended_meta"])) {
     syncGrocyExtendedMeta();
     die();
 }
+if (isset($_POST["extended_create_dry_run"])) {
+    runExtendedCreateDryRun();
+    die();
+}
 
 
 $webUi = new WebUiGenerator(MENU_SETTINGS);
@@ -170,6 +174,26 @@ function getHtmlSettingsExtendedCreateMode(): string {
     }
 
     $html->addLineBreak();
+    $html->addHtml('<b>Dry-run mapping preview</b><br><small>Test how Extended Create would resolve values (manual mapping + AI fallback).</small>');
+    $html->addHtml((new EditFieldBuilder('EXT_CREATE_DRYRUN_BARCODE', 'Barcode for dry run', '', $html))
+        ->pattern('[0-9A-Za-z\-]{3,30}')
+        ->generate(true)
+    );
+    $html->addHtml((new EditFieldBuilder('EXT_CREATE_DRYRUN_NAME', 'Product name for dry run', '', $html))
+        ->pattern('.{2,120}')
+        ->generate(true)
+    );
+    $dryRunButton = $html->buildButton("runExtendedCreateDryRunBtn", "Run dry run")
+        ->setId("runExtendedCreateDryRunBtn")
+        ->setOnClick("return runExtendedCreateDryRun();")
+        ->setRaised(true)
+        ->setIsAccent(true)
+        ->generate(true);
+    $html->addHtml($dryRunButton);
+    $html->addHtml('<div id="extendedCreateDryRunStatus" style="display:none; margin-top:8px; font-weight:600;"></div>');
+    $html->addHtml('<pre id="extendedCreateDryRunResult" style="display:none; white-space:pre-wrap; margin-top:8px; background:#f3f4f6; border:1px solid #d6d8dc; border-radius:4px; padding:10px;"></pre>');
+
+    $html->addLineBreak();
     $html->addHtml("<script>
         function syncGrocyExtendedMeta() {
             var btn = document.getElementById('syncGrocyMetaBtn');
@@ -210,6 +234,74 @@ function getHtmlSettingsExtendedCreateMode(): string {
                 }
             };
             xhr.send('sync_grocy_extended_meta=1');
+            return false;
+        }
+
+        function runExtendedCreateDryRun() {
+            var btn = document.getElementById('runExtendedCreateDryRunBtn');
+            var status = document.getElementById('extendedCreateDryRunStatus');
+            var result = document.getElementById('extendedCreateDryRunResult');
+            var barcode = document.getElementById('EXT_CREATE_DRYRUN_BARCODE');
+            var name = document.getElementById('EXT_CREATE_DRYRUN_NAME');
+
+            if (!barcode || !name || !barcode.value || !name.value) {
+                if (status) {
+                    status.style.display = 'block';
+                    status.style.color = 'red';
+                    status.textContent = 'Please provide barcode and product name';
+                }
+                return false;
+            }
+
+            if (btn) btn.disabled = true;
+            if (status) {
+                status.style.display = 'block';
+                status.style.color = '#555';
+                status.textContent = 'Running dry run...';
+            }
+            if (result) {
+                result.style.display = 'block';
+                result.textContent = '';
+            }
+
+            var params = 'extended_create_dry_run=1&barcode=' + encodeURIComponent(barcode.value) + '&name=' + encodeURIComponent(name.value);
+            var xhr = new XMLHttpRequest();
+            xhr.open('POST', window.location.href, true);
+            xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded; charset=UTF-8');
+            xhr.onreadystatechange = function() {
+                if (xhr.readyState !== 4) return;
+                if (btn) btn.disabled = false;
+                if (xhr.status !== 200) {
+                    if (status) {
+                        status.style.color = 'red';
+                        status.textContent = 'Dry run failed (HTTP ' + xhr.status + ')';
+                    }
+                    return;
+                }
+                try {
+                    var data = JSON.parse(xhr.responseText);
+                    if (!data.ok) {
+                        if (status) {
+                            status.style.color = 'red';
+                            status.textContent = data.error || 'Dry run failed';
+                        }
+                        return;
+                    }
+                    if (status) {
+                        status.style.color = 'green';
+                        status.textContent = 'Dry run completed';
+                    }
+                    if (result) {
+                        result.textContent = JSON.stringify(data, null, 2);
+                    }
+                } catch (e) {
+                    if (status) {
+                        status.style.color = 'red';
+                        status.textContent = 'Dry run failed (invalid response)';
+                    }
+                }
+            };
+            xhr.send(params);
             return false;
         }
     </script>");
@@ -260,6 +352,121 @@ function syncGrocyExtendedMeta(): void {
             "error" => "Unable to sync Grocy metadata: " . $e->getMessage(),
         ));
     }
+}
+
+function runExtendedCreateDryRun(): void {
+    header('Content-Type: application/json');
+    $config = BBConfig::getInstance();
+
+    $barcode = sanitizeString($_POST["barcode"] ?? "");
+    $name = sanitizeString($_POST["name"] ?? "");
+    if ($barcode == null || trim($barcode) === "" || $name == null || trim($name) === "") {
+        echo json_encode(array("ok" => false, "error" => "Missing barcode or product name"));
+        return;
+    }
+
+    $categoriesRaw = json_decode($config["EXT_CREATE_GROCY_CATEGORIES"] ?? "[]", true);
+    $locationsRaw = json_decode($config["EXT_CREATE_GROCY_LOCATIONS"] ?? "[]", true);
+    $unitsRaw = json_decode($config["EXT_CREATE_GROCY_UNITS"] ?? "[]", true);
+
+    $categories = extractMetaNamesForMatching($categoriesRaw);
+    $locations = extractMetaNamesForMatching($locationsRaw);
+    $units = extractMetaNamesForMatching($unitsRaw);
+
+    if (count($categories) === 0 || count($locations) === 0 || count($units) === 0) {
+        echo json_encode(array("ok" => false, "error" => "Grocy metadata cache is empty. Please run sync first."));
+        return;
+    }
+
+    $aiSuggestion = null;
+    $aiError = null;
+    if ($config["LOOKUP_USE_OPENAI"] == "1" && ($config["LOOKUP_OPENAI_API_KEY"] ?? "") != "") {
+        require_once __DIR__ . "/../incl/lookupProviders/ProviderOpenAI.php";
+        $provider = new ProviderOpenAI();
+        $aiSuggestion = $provider->suggestExtendedCreateData($barcode, $name, $categories, $locations, $units);
+        $aiError = $provider->getLastErrorMessage();
+    }
+
+    $mapping = parseCategoryLocationMapping($config["EXT_CREATE_CATEGORY_LOCATION_MAP"] ?? "");
+
+    $resolvedCategory = resolveFromAllowedList($aiSuggestion["category"] ?? null, $categories);
+    $resolvedUnit = resolveFromAllowedList($aiSuggestion["unit"] ?? null, $units);
+
+    $resolvedLocation = null;
+    $locationSource = "fallback";
+    if ($resolvedCategory != null && isset($mapping[strtolower($resolvedCategory)])) {
+        $mapped = resolveFromAllowedList($mapping[strtolower($resolvedCategory)], $locations);
+        if ($mapped != null) {
+            $resolvedLocation = $mapped;
+            $locationSource = "manual_mapping";
+        }
+    }
+    if ($resolvedLocation == null) {
+        $resolvedLocation = resolveFromAllowedList($aiSuggestion["location"] ?? null, $locations);
+        if ($resolvedLocation != null) {
+            $locationSource = "ai";
+        }
+    }
+    if ($resolvedLocation == null && count($locations) > 0) {
+        $resolvedLocation = $locations[0];
+        $locationSource = "fallback";
+    }
+
+    $shelfLife = null;
+    if (isset($aiSuggestion["default_shelf_life_days"]) && is_numeric($aiSuggestion["default_shelf_life_days"])) {
+        $shelfLife = intval($aiSuggestion["default_shelf_life_days"]);
+    }
+
+    echo json_encode(array(
+        "ok" => true,
+        "input" => array("barcode" => $barcode, "name" => $name),
+        "resolved" => array(
+            "category" => array("value" => $resolvedCategory, "source" => ($resolvedCategory != null ? "ai" : "missing")),
+            "location" => array("value" => $resolvedLocation, "source" => $locationSource),
+            "unit" => array("value" => $resolvedUnit, "source" => ($resolvedUnit != null ? "ai" : "missing")),
+            "default_shelf_life_days" => array("value" => $shelfLife, "source" => ($shelfLife !== null ? "ai" : "missing")),
+        ),
+        "ai_suggestion" => $aiSuggestion,
+        "ai_error" => $aiError,
+        "dry_run_enabled" => ($config["EXT_CREATE_DRY_RUN"] == "1"),
+    ));
+}
+
+function extractMetaNamesForMatching($raw): array {
+    if (!is_array($raw)) return array();
+    $names = array();
+    foreach ($raw as $row) {
+        if (is_array($row) && isset($row["name"])) {
+            $names[] = strval($row["name"]);
+        }
+    }
+    return $names;
+}
+
+function parseCategoryLocationMapping(string $mappingText): array {
+    $map = array();
+    $lines = preg_split('/\r\n|\r|\n/', $mappingText);
+    foreach ($lines as $line) {
+        $line = trim($line);
+        if ($line === "" || strpos($line, "=") === false) continue;
+        $parts = explode("=", $line, 2);
+        $cat = trim($parts[0]);
+        $loc = trim($parts[1]);
+        if ($cat !== "" && $loc !== "") {
+            $map[strtolower($cat)] = $loc;
+        }
+    }
+    return $map;
+}
+
+function resolveFromAllowedList(?string $value, array $allowed): ?string {
+    if ($value == null || trim($value) === "") return null;
+    foreach ($allowed as $item) {
+        if (strcasecmp(trim($item), trim($value)) === 0) {
+            return $item;
+        }
+    }
+    return null;
 }
 
 /**

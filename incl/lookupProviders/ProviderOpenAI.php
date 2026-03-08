@@ -87,6 +87,86 @@ class ProviderOpenAI extends LookupProvider {
         return $this->lastResponseText;
     }
 
+    /**
+     * Returns AI suggestions for extended Grocy product creation fields.
+     *
+     * @param string $barcode
+     * @param string $productName
+     * @param array $categories Array of category names
+     * @param array $locations Array of location names
+     * @param array $units Array of unit names
+     * @return array|null
+     */
+    public function suggestExtendedCreateData(string $barcode, string $productName, array $categories, array $locations, array $units): ?array {
+        $this->lastErrorMessage = null;
+        $this->lastResponseText = null;
+
+        if (!$this->isProviderEnabled()) {
+            $this->lastErrorMessage = "OpenAI lookup provider is disabled";
+            return null;
+        }
+        if ($this->apiKey == null || trim($this->apiKey) === "") {
+            $this->lastErrorMessage = "OpenAI API key is missing";
+            return null;
+        }
+
+        $payload = array(
+            "model" => $this->getConfiguredModel(),
+            "temperature" => 0,
+            "input" => $this->buildExtendedCreatePrompt($barcode, $productName, $categories, $locations, $units)
+        );
+
+        $result = $this->execute(
+            self::OPENAI_ENDPOINT,
+            METHOD_POST,
+            null,
+            null,
+            array("Authorization" => "Bearer " . trim($this->apiKey)),
+            true,
+            json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)
+        );
+
+        if (!is_array($result)) {
+            return null;
+        }
+        if (isset($result["error"]["message"])) {
+            $this->lastErrorMessage = sanitizeString($result["error"]["message"]);
+            API::logError("OpenAI extended create suggestion error: " . $this->lastErrorMessage);
+            return null;
+        }
+
+        $content = $this->extractResponseText($result);
+        if ($content == null) {
+            return null;
+        }
+        $this->lastResponseText = $content;
+
+        $jsonData = $this->extractJsonObjectFromText($content);
+        if (!is_array($jsonData)) {
+            return null;
+        }
+
+        $normalizeText = function($val): ?string {
+            if (!isset($val) || $val === null) return null;
+            $txt = trim(strval($val));
+            if ($txt === "" || strtoupper($txt) === "UNKNOWN" || strtolower($txt) === "null") return null;
+            return sanitizeString($txt);
+        };
+
+        $shelfLife = null;
+        if (isset($jsonData["default_shelf_life_days"]) && is_numeric($jsonData["default_shelf_life_days"])) {
+            $shelfLife = intval($jsonData["default_shelf_life_days"]);
+            if ($shelfLife < -1) $shelfLife = -1;
+        }
+
+        return array(
+            "category" => $normalizeText($jsonData["suggested_category"] ?? null),
+            "location" => $normalizeText($jsonData["suggested_location"] ?? null),
+            "unit" => $normalizeText($jsonData["suggested_unit"] ?? null),
+            "default_shelf_life_days" => $shelfLife,
+        );
+    }
+
     private function buildPrompt(string $barcode): string {
         $config = BBConfig::getInstance();
         $schema = array();
@@ -133,6 +213,27 @@ class ProviderOpenAI extends LookupProvider {
             . "- Use kilograms (kg) for 1 kg or more\n"
             . "- Examples: 300g, 750g, 1kg, 1.5kg, 2kg\n"
             . "If unknown, return exactly: UNKNOWN";
+    }
+
+    private function buildExtendedCreatePrompt(string $barcode, string $productName, array $categories, array $locations, array $units): string {
+        $categoryList = implode(", ", array_map('strval', $categories));
+        $locationList = implode(", ", array_map('strval', $locations));
+        $unitList = implode(", ", array_map('strval', $units));
+
+        return "You are helping to auto-create Grocy products for Barcode Buddy.\n"
+            . "Barcode: " . $barcode . "\n"
+            . "Product name: " . $productName . "\n"
+            . "Choose the best matching values from these EXACT lists.\n"
+            . "Categories: [" . $categoryList . "]\n"
+            . "Locations: [" . $locationList . "]\n"
+            . "Units: [" . $unitList . "]\n"
+            . "Return ONLY valid JSON with keys:\n"
+            . "suggested_category, suggested_location, suggested_unit, default_shelf_life_days\n"
+            . "Rules:\n"
+            . "- Use exact names from the provided lists\n"
+            . "- If unknown, set null\n"
+            . "- default_shelf_life_days should be an integer (e.g. 7, 30, 365, -1 for non-perishable), or null\n"
+            . "- No markdown, no explanation";
     }
 
     private function executeResponsesLookup(string $barcode, string $apiKey, string $toolType) {
