@@ -156,128 +156,6 @@ function getHtmlSettingsBarcodeLookup(): string {
     $html->addHtml('</ul>');
     $html->addLineBreak();
 
-    $openAiOptionsDisplay = ($config["LOOKUP_USE_OPENAI"] == "1") ? "block" : "none";
-    $html->addHtml('<div id="openaiProviderOptions" style="display:' . $openAiOptionsDisplay . '; border:1px solid #ddd; padding:12px; margin-bottom:12px;">');
-    $html->addHtml("<b>OpenAI Lookup Settings</b><br><small>Only used when the OpenAI provider is enabled above.</small>");
-    $html->addLineBreak();
-    $html->addHtml('<small><b>Hint:</b> You need an OpenAI developer account with API access and available credit/balance. Each lookup sends a request, consumes tokens and therefore costs money.</small>');
-    $html->addLineBreak();
-    $html->addLineBreak();
-    $html->addHtml((new EditFieldBuilder(
-        'LOOKUP_OPENAI_API_KEY',
-        'OpenAI API Key (ChatGPT Lookup)',
-        $config["LOOKUP_OPENAI_API_KEY"],
-        $html))
-        ->required($config["LOOKUP_USE_OPENAI"])
-        ->pattern('.{20,}')
-        ->type('password')
-        ->disabled(!$config["LOOKUP_USE_OPENAI"])
-        ->generate(true)
-    );
-    $html->addLineBreak();
-    $openAiModelOptions = array(
-        "gpt-5.4" => "gpt-5.4",
-        "gpt-5.4-mini" => "gpt-5.4-mini",
-        "gpt-5.3" => "gpt-5.3",
-        "gpt-5.3-mini" => "gpt-5.3-mini",
-        "gpt-5.2" => "gpt-5.2",
-        "gpt-5.2-pro" => "gpt-5.2-pro",
-        "gpt-5" => "gpt-5",
-        "gpt-5-mini" => "gpt-5-mini",
-        "gpt-5-nano" => "gpt-5-nano",
-        "gpt-4.1" => "gpt-4.1",
-        "gpt-4.1-mini" => "gpt-4.1-mini",
-        "gpt-4o" => "gpt-4o",
-        "gpt-4o-mini" => "gpt-4o-mini"
-    );
-    $selectedModel = $config["LOOKUP_OPENAI_MODEL"] ?? "gpt-4.1-mini";
-    $selectDisabled = ($config["LOOKUP_USE_OPENAI"] == "1") ? "" : " disabled";
-    $selectHtml = '<label for="LOOKUP_OPENAI_MODEL"><b>OpenAI Model</b></label><br>';
-    $selectHtml .= '<select id="LOOKUP_OPENAI_MODEL" name="LOOKUP_OPENAI_MODEL" style="width:100%;max-width:420px;padding:6px;"' . $selectDisabled . '>';
-    foreach ($openAiModelOptions as $value => $label) {
-        $selectedHtml = ($selectedModel === $value) ? ' selected' : '';
-        $selectHtml .= '<option value="' . sanitizeString($value) . '"' . $selectedHtml . '>' . sanitizeString($label) . '</option>';
-    }
-    $selectHtml .= '</select>';
-    $html->addHtml($selectHtml);
-    $html->addLineBreak();
-
-    $html->addLineBreak();
-    $html->addHtml("<b>OpenAI naming schema</b><br><small>Choose the exact components that must be returned. If one selected component cannot be determined, the lookup returns UNKNOWN.</small>");
-    $html->addLineBreak();
-    $html->addCheckbox("LOOKUP_OPENAI_NAME_MANUFACTURER", "Brand / trade name", $config["LOOKUP_OPENAI_NAME_MANUFACTURER"], !$config["LOOKUP_USE_OPENAI"], false);
-    $html->addCheckbox("LOOKUP_OPENAI_NAME_PRODUCT", "Product name", $config["LOOKUP_OPENAI_NAME_PRODUCT"], !$config["LOOKUP_USE_OPENAI"], false);
-    $html->addCheckbox("LOOKUP_OPENAI_NAME_PACKSIZE", "Package size", $config["LOOKUP_OPENAI_NAME_PACKSIZE"], !$config["LOOKUP_USE_OPENAI"], false);
-    $html->addLineBreak();
-    $html->addHtml((new EditFieldBuilder(
-        'LOOKUP_OPENAI_TEST_BARCODE_TEMP',
-        'Test Barcode',
-        '4306188348191',
-        $html))
-        ->pattern('[0-9]{8,18}')
-        ->disabled(!$config["LOOKUP_USE_OPENAI"])
-        ->generate(true)
-    );
-    $html->addLineBreak();
-    $testButtonHtml = $html->buildButton("testOpenAiLookupBtn", "Test OpenAI Lookup")
-        ->setId("testOpenAiLookupBtn")
-        ->setOnClick("return testOpenAiLookupRequest();")
-        ->setRaised(true)
-        ->setIsAccent(true)
-        ->setDisabled(!$config["LOOKUP_USE_OPENAI"])
-        ->generate(true);
-    $html->addHtml('<div style="display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap;">'
-        . '<div style="flex:0 0 auto;">' . $testButtonHtml . '</div>'
-        . '</div>');
-    $html->addLineBreak();
-    $html->addHtml('<div id="openaiLookupTestStatus" style="display:none; margin:6px 0 8px 0; font-weight:600;"></div>');
-    $html->addHtml('<div id="openaiLookupTestResult" style="display:block; white-space:pre-wrap; font-family:monospace; background:#f3f4f6; border:1px solid #d6d8dc; border-radius:4px; padding:10px; margin-top:6px; min-height:44px;"></div>');
-    $html->addHtml('</div>');
-
-    $upcDbDisplay = ($config["LOOKUP_USE_UPC_DATABASE"] == "1") ? "block" : "none";
-    $html->addLineBreak();
-    $html->addHtml('<div id="upcDbApiKeyBox" style="display:' . $upcDbDisplay . ';">');
-    $html->addHtml((new EditFieldBuilder(
-        'LOOKUP_UPC_DATABASE_KEY',
-        'UPCDatabase.org API Key',
-        $config["LOOKUP_UPC_DATABASE_KEY"],
-        $html))
-        ->required($config["LOOKUP_USE_UPC_DATABASE"])
-        ->pattern('[A-Za-z0-9]{32}')
-        ->disabled(!$config["LOOKUP_USE_UPC_DATABASE"])
-        ->generate(true)
-    );
-    $html->addHtml('</div>');
-
-    $openGtinDisplay = ($config["LOOKUP_USE_OPEN_GTIN_DATABASE"] == "1") ? "block" : "none";
-    $html->addLineBreak();
-    $html->addHtml('<div id="openGtinApiKeyBox" style="display:' . $openGtinDisplay . ';">');
-    $html->addHtml((new EditFieldBuilder(
-        'LOOKUP_OPENGTIN_KEY',
-        'OpenGtinDb.org API Key',
-        $config["LOOKUP_OPENGTIN_KEY"],
-        $html))
-        ->required($config["LOOKUP_USE_OPEN_GTIN_DATABASE"])
-        ->pattern('[^%]{3,}')
-        ->disabled(!$config["LOOKUP_USE_OPEN_GTIN_DATABASE"])
-        ->generate(true)
-    );
-    $html->addHtml('</div>');
-
-    $discogsDisplay = ($config["LOOKUP_USE_DISCOGS"] == "1") ? "block" : "none";
-    $html->addLineBreak();
-    $html->addHtml('<div id="discogsApiKeyBox" style="display:' . $discogsDisplay . ';">');
-    $html->addHtml((new EditFieldBuilder(
-        'LOOKUP_DISCOGS_TOKEN',
-        'discogs.com Access Token',
-        $config["LOOKUP_DISCOGS_TOKEN"],
-        $html))
-        ->required($config["LOOKUP_USE_DISCOGS"])
-        ->pattern('[A-Za-z0-9]{40}')
-        ->disabled(!$config["LOOKUP_USE_DISCOGS"])
-        ->generate(true)
-    );
-    $html->addHtml('</div>');
 
     $html->addHiddenField("LOOKUP_ORDER", $config["LOOKUP_ORDER"]);
 
@@ -554,6 +432,104 @@ function generateApiKeyChangeScript(string $functionName, string $keyId, string 
 function getProviderListItems(UiEditor $html): array {
     $config                                 = BBConfig::getInstance();
     $result                                 = array();
+
+    $upcDbSettingsHtml = '<div id="upcDbApiKeyBox" style="display:' . (($config["LOOKUP_USE_UPC_DATABASE"] == "1") ? "block" : "none") . '; margin-top:8px;">'
+        . (new EditFieldBuilder(
+            'LOOKUP_UPC_DATABASE_KEY',
+            'UPCDatabase.org API Key',
+            $config["LOOKUP_UPC_DATABASE_KEY"],
+            $html))
+            ->required($config["LOOKUP_USE_UPC_DATABASE"])
+            ->pattern('[A-Za-z0-9]{32}')
+            ->disabled(!$config["LOOKUP_USE_UPC_DATABASE"])
+            ->generate(true)
+        . '</div>';
+
+    $openGtinSettingsHtml = '<div id="openGtinApiKeyBox" style="display:' . (($config["LOOKUP_USE_OPEN_GTIN_DATABASE"] == "1") ? "block" : "none") . '; margin-top:8px;">'
+        . (new EditFieldBuilder(
+            'LOOKUP_OPENGTIN_KEY',
+            'OpenGtinDb.org API Key',
+            $config["LOOKUP_OPENGTIN_KEY"],
+            $html))
+            ->required($config["LOOKUP_USE_OPEN_GTIN_DATABASE"])
+            ->pattern('[^%]{3,}')
+            ->disabled(!$config["LOOKUP_USE_OPEN_GTIN_DATABASE"])
+            ->generate(true)
+        . '</div>';
+
+    $discogsSettingsHtml = '<div id="discogsApiKeyBox" style="display:' . (($config["LOOKUP_USE_DISCOGS"] == "1") ? "block" : "none") . '; margin-top:8px;">'
+        . (new EditFieldBuilder(
+            'LOOKUP_DISCOGS_TOKEN',
+            'discogs.com Access Token',
+            $config["LOOKUP_DISCOGS_TOKEN"],
+            $html))
+            ->required($config["LOOKUP_USE_DISCOGS"])
+            ->pattern('[A-Za-z0-9]{40}')
+            ->disabled(!$config["LOOKUP_USE_DISCOGS"])
+            ->generate(true)
+        . '</div>';
+
+    $openAiModelOptions = array(
+        "gpt-5.4" => "gpt-5.4",
+        "gpt-5.4-mini" => "gpt-5.4-mini",
+        "gpt-5.3" => "gpt-5.3",
+        "gpt-5.3-mini" => "gpt-5.3-mini",
+        "gpt-5.2" => "gpt-5.2",
+        "gpt-5.2-pro" => "gpt-5.2-pro",
+        "gpt-5" => "gpt-5",
+        "gpt-5-mini" => "gpt-5-mini",
+        "gpt-5-nano" => "gpt-5-nano",
+        "gpt-4.1" => "gpt-4.1",
+        "gpt-4.1-mini" => "gpt-4.1-mini",
+        "gpt-4o" => "gpt-4o",
+        "gpt-4o-mini" => "gpt-4o-mini"
+    );
+    $selectedModel = $config["LOOKUP_OPENAI_MODEL"] ?? "gpt-4.1-mini";
+    $selectDisabled = ($config["LOOKUP_USE_OPENAI"] == "1") ? "" : " disabled";
+    $selectHtml = '<label for="LOOKUP_OPENAI_MODEL"><b>OpenAI Model</b></label><br>';
+    $selectHtml .= '<select id="LOOKUP_OPENAI_MODEL" name="LOOKUP_OPENAI_MODEL" style="width:100%;max-width:420px;padding:6px;"' . $selectDisabled . '>';
+    foreach ($openAiModelOptions as $value => $label) {
+        $selectedHtml = ($selectedModel === $value) ? ' selected' : '';
+        $selectHtml .= '<option value="' . sanitizeString($value) . '"' . $selectedHtml . '>' . sanitizeString($label) . '</option>';
+    }
+    $selectHtml .= '</select>';
+    $testButtonHtml = $html->buildButton("testOpenAiLookupBtn", "Test OpenAI Lookup")
+        ->setId("testOpenAiLookupBtn")
+        ->setOnClick("return testOpenAiLookupRequest();")
+        ->setRaised(true)
+        ->setIsAccent(true)
+        ->setDisabled(!$config["LOOKUP_USE_OPENAI"])
+        ->generate(true);
+
+    $openAiSettingsHtml = '<div id="openaiProviderOptions" style="display:' . (($config["LOOKUP_USE_OPENAI"] == "1") ? "block" : "none") . '; border:1px solid #ddd; padding:12px; margin-top:10px;">'
+        . '<small><b>Hint:</b> You need an OpenAI developer account with API access and available credit/balance. Each lookup sends a request, consumes tokens and therefore costs money.</small><br><br>'
+        . (new EditFieldBuilder(
+            'LOOKUP_OPENAI_API_KEY',
+            'OpenAI API Key (ChatGPT Lookup)',
+            $config["LOOKUP_OPENAI_API_KEY"],
+            $html))
+            ->required($config["LOOKUP_USE_OPENAI"])
+            ->pattern('.{20,}')
+            ->type('password')
+            ->disabled(!$config["LOOKUP_USE_OPENAI"])
+            ->generate(true)
+        . '<br>' . $selectHtml
+        . '<br><b>OpenAI naming schema</b><br><small>Choose the exact components that must be returned. If one selected component cannot be determined, the lookup returns UNKNOWN.</small><br>'
+        . $html->addCheckbox("LOOKUP_OPENAI_NAME_MANUFACTURER", "Brand / trade name", $config["LOOKUP_OPENAI_NAME_MANUFACTURER"], !$config["LOOKUP_USE_OPENAI"], false, true)
+        . $html->addCheckbox("LOOKUP_OPENAI_NAME_PRODUCT", "Product name", $config["LOOKUP_OPENAI_NAME_PRODUCT"], !$config["LOOKUP_USE_OPENAI"], false, true)
+        . $html->addCheckbox("LOOKUP_OPENAI_NAME_PACKSIZE", "Package size", $config["LOOKUP_OPENAI_NAME_PACKSIZE"], !$config["LOOKUP_USE_OPENAI"], false, true)
+        . (new EditFieldBuilder(
+            'LOOKUP_OPENAI_TEST_BARCODE_TEMP',
+            'Test Barcode',
+            '4306188348191',
+            $html))
+            ->pattern('[0-9]{8,18}')
+            ->disabled(!$config["LOOKUP_USE_OPENAI"])
+            ->generate(true)
+        . '<div style="display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap; margin-top:8px;"><div style="flex:0 0 auto;">' . $testButtonHtml . '</div></div>'
+        . '<div id="openaiLookupTestStatus" style="display:none; margin:6px 0 8px 0; font-weight:600;"></div>'
+        . '<div id="openaiLookupTestResult" style="display:block; white-space:pre-wrap; font-family:monospace; background:#f3f4f6; border:1px solid #d6d8dc; border-radius:4px; padding:10px; margin-top:6px; min-height:44px;"></div>'
+        . '</div>';
     $result["id" . LOOKUP_ID_OPENFOODFACTS] = $html->addListItem($html->addCheckbox('LOOKUP_USE_OFF', 'Open Food Facts', $config["LOOKUP_USE_OFF"], false, false, true), "Uses OpenFoodFacts.org", LOOKUP_ID_OPENFOODFACTS, true);
     $result["id" . LOOKUP_ID_UPCDB]         = $html->addListItem($html->addCheckbox('LOOKUP_USE_UPC', 'UPC Item DB', $config["LOOKUP_USE_UPC"], false, false, true), "Uses UPCitemDB.com", LOOKUP_ID_UPCDB, true);
     $result["id" . LOOKUP_ID_ALBERTHEIJN]   = $html->addListItem($html->addCheckbox('LOOKUP_USE_AH', 'Albert Heijn', $config["LOOKUP_USE_AH"], false, false, true), "Uses AH.nl", LOOKUP_ID_ALBERTHEIJN, true);
@@ -567,7 +543,7 @@ function getProviderListItems(UiEditor $html): array {
     )->onCheckChanged(
         "handleUPCDBChange(this)",
         generateApiKeyChangeScript("handleUPCDBChange", "LOOKUP_UPC_DATABASE_KEY", "upcDbApiKeyBox"))
-        ->generate(true), "Uses UPCDatabase.org", LOOKUP_ID_UPCDATABASE, true);
+        ->generate(true), "Uses UPCDatabase.org" . $upcDbSettingsHtml, LOOKUP_ID_UPCDATABASE, true);
 
     $result["id" . LOOKUP_ID_OPENGTINDB] = $html->addListItem((new CheckBoxBuilder(
         "LOOKUP_USE_OPEN_GTIN_DATABASE",
@@ -577,7 +553,7 @@ function getProviderListItems(UiEditor $html): array {
     )->onCheckChanged(
         "handleOpenGtinChange(this)",
         generateApiKeyChangeScript("handleOpenGtinChange", "LOOKUP_OPENGTIN_KEY", "openGtinApiKeyBox"))
-        ->generate(true), "Uses OpenGtinDb.org", LOOKUP_ID_OPENGTINDB, true);
+        ->generate(true), "Uses OpenGtinDb.org" . $openGtinSettingsHtml, LOOKUP_ID_OPENGTINDB, true);
 
     $result["id" . LOOKUP_ID_DISCOGS]   = $html->addListItem((new CheckBoxBuilder(
         "LOOKUP_USE_DISCOGS",
@@ -587,7 +563,7 @@ function getProviderListItems(UiEditor $html): array {
     )->onCheckChanged(
         "handleDiscogsChange(this)",
         generateApiKeyChangeScript("handleDiscogsChange", "LOOKUP_DISCOGS_TOKEN", "discogsApiKeyBox"))
-        ->generate(true), "Uses Discogs.com", LOOKUP_ID_DISCOGS, true);
+        ->generate(true), "Uses Discogs.com" . $discogsSettingsHtml, LOOKUP_ID_DISCOGS, true);
 
     $result["id" . LOOKUP_ID_OPENAI] = $html->addListItem((new CheckBoxBuilder(
         "LOOKUP_USE_OPENAI",
@@ -612,7 +588,7 @@ function getProviderListItems(UiEditor $html): array {
                     setOpenAiOptionsEnabled(element.checked);
                 }
             }")
-        ->generate(true), "Uses OpenAI ChatGPT API for barcode name lookup", LOOKUP_ID_OPENAI, true);
+        ->generate(true), "Uses OpenAI ChatGPT API for barcode name lookup" . $openAiSettingsHtml, LOOKUP_ID_OPENAI, true);
 
     $bbServerSubtitle                    = "Uses " . BarcodeFederation::HOST_READABLE;
     if (!$config["BBUDDY_SERVER_ENABLED"])
