@@ -25,6 +25,9 @@ require_once __DIR__ . "/curl.inc.php";
 
 const API_O_BARCODES       = 'objects/product_barcodes';
 const API_O_PRODUCTS       = 'objects/products';
+const API_O_PRODUCT_GROUPS = 'objects/product_groups';
+const API_O_LOCATIONS      = 'objects/locations';
+const API_O_QUANTITY_UNITS = 'objects/quantity_units';
 const API_STOCK_PRODUCTS   = 'stock/products';
 const API_ALL_PRODUCTS     = 'stock';
 const API_SHOPPINGLIST     = 'stock/shoppinglist/';
@@ -204,6 +207,49 @@ class API {
         }
         self::logError("Grocy did not provide local time");
         return "0";
+    }
+
+    /**
+     * Returns categories (Grocy product groups), locations and quantity units for extended create mode.
+     *
+     * @return array{categories: array, locations: array, units: array}
+     */
+    public static function getExtendedCreateMeta(): array {
+        return array(
+            "categories" => self::getSimpleObjectList(API_O_PRODUCT_GROUPS),
+            "locations" => self::getSimpleObjectList(API_O_LOCATIONS),
+            "units" => self::getSimpleObjectList(API_O_QUANTITY_UNITS),
+        );
+    }
+
+    /**
+     * @param string $endpoint
+     * @return array<int,array{id:string,name:string}>
+     */
+    private static function getSimpleObjectList(string $endpoint): array {
+        $curl = new CurlGenerator($endpoint);
+        try {
+            $result = $curl->execute(true);
+        } catch (Exception $e) {
+            self::processError($e, "Could not get Grocy meta data");
+            return array();
+        }
+
+        if (!is_array($result)) {
+            return array();
+        }
+
+        $items = array();
+        foreach ($result as $row) {
+            if (!is_array($row) || !isset($row["id"]) || !isset($row["name"])) {
+                continue;
+            }
+            $items[] = array(
+                "id" => strval($row["id"]),
+                "name" => sanitizeString($row["name"])
+            );
+        }
+        return $items;
     }
 
 

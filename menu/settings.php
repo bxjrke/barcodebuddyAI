@@ -37,12 +37,17 @@ if (isset($_POST["test_openai_lookup"])) {
     testOpenAiLookup();
     die();
 }
+if (isset($_POST["sync_grocy_extended_meta"])) {
+    syncGrocyExtendedMeta();
+    die();
+}
 
 
 $webUi = new WebUiGenerator(MENU_SETTINGS);
 $webUi->addHeader();
 $webUi->addCard("General Settings", getHtmlSettingsGeneral());
 $webUi->addCard("Barcode Lookup Providers", getHtmlSettingsBarcodeLookup());
+$webUi->addCard("Extended Create Mode (Grocy)", getHtmlSettingsExtendedCreateMode());
 $webUi->addCard("Grocy API", getHtmlSettingsGrocyApi());
 $webUi->addCard("Redis Cache", getHtmlSettingsRedis());
 $webUi->addCard("Websocket Server Status", getHtmlSettingsWebsockets());
@@ -117,6 +122,145 @@ function getHtmlSettingsGeneral(): string {
     return $html->getHtml();
 }
 
+/**
+ * @return string
+ */
+function getHtmlSettingsExtendedCreateMode(): string {
+    $config = BBConfig::getInstance();
+    $html   = new UiEditor(true, null, "settingsExtendedCreate");
+
+    $html->addCheckbox("EXT_CREATE_MODE_ENABLED", "Enable Extended Create Mode", $config["EXT_CREATE_MODE_ENABLED"], false, false);
+    $html->addCheckbox("EXT_CREATE_DRY_RUN", "Dry run mode (show data before product create)", $config["EXT_CREATE_DRY_RUN"], false, false);
+    $html->addCheckbox("EXT_CREATE_AUTO_ASSIGN_LOCATION_AI", "Allow AI to auto-assign location when no manual mapping exists", $config["EXT_CREATE_AUTO_ASSIGN_LOCATION_AI"], false, false);
+    $html->addLineBreak();
+
+    $lastSync = $config["EXT_CREATE_GROCY_META_LAST_SYNC"];
+    if ($lastSync == null || $lastSync == "0") {
+        $lastSync = "never";
+    }
+    $html->addHtml('<b>Grocy metadata sync</b><br><small>Syncs categories, locations and quantity units from Grocy.</small><br>');
+    $html->addHtml('<small>Last sync: <span id="grocyMetaLastSync">' . sanitizeString($lastSync) . '</span></small><br>');
+    $syncButton = $html->buildButton("syncGrocyMetaBtn", "Sync now")
+        ->setId("syncGrocyMetaBtn")
+        ->setOnClick("return syncGrocyExtendedMeta();")
+        ->setRaised(true)
+        ->setIsAccent(true)
+        ->generate(true);
+    $html->addHtml($syncButton);
+    $html->addHtml('<div id="grocyMetaSyncStatus" style="display:none; margin-top:8px; font-weight:600;"></div>');
+    $html->addLineBreak();
+
+    $html->addHtml('<b>Category -> location mapping overrides</b><br><small>One mapping per line: Category Name = Location Name</small>');
+    $map = $config["EXT_CREATE_CATEGORY_LOCATION_MAP"] ?? "";
+    $html->addHtml('<textarea id="EXT_CREATE_CATEGORY_LOCATION_MAP" name="EXT_CREATE_CATEGORY_LOCATION_MAP" style="width:100%; min-height:140px;" placeholder="Sweets = Süßigkeiten Schrank&#10;Frozen = Gefrierschrank">' . sanitizeString($map) . '</textarea>');
+    $html->addLineBreak();
+
+    $categories = decodeMetaNames($config["EXT_CREATE_GROCY_CATEGORIES"]);
+    $locations = decodeMetaNames($config["EXT_CREATE_GROCY_LOCATIONS"]);
+    $units = decodeMetaNames($config["EXT_CREATE_GROCY_UNITS"]);
+    $html->addHtml('<small>Cached in BarcodeBuddy: ' . count($categories) . ' categories, ' . count($locations) . ' locations, ' . count($units) . ' units.</small>');
+    if (count($categories) > 0) {
+        $html->addHtml('<details style="margin-top:8px;"><summary>Show cached categories/locations/units</summary>');
+        $html->addHtml('<div style="display:flex; gap:20px; flex-wrap:wrap; margin-top:8px;">'
+            . '<div><b>Categories</b><br><small>' . sanitizeString(implode(", ", $categories)) . '</small></div>'
+            . '<div><b>Locations</b><br><small>' . sanitizeString(implode(", ", $locations)) . '</small></div>'
+            . '<div><b>Units</b><br><small>' . sanitizeString(implode(", ", $units)) . '</small></div>'
+            . '</div>');
+        $html->addHtml('</details>');
+    }
+
+    $html->addLineBreak();
+    $html->addHtml("<script>
+        function syncGrocyExtendedMeta() {
+            var btn = document.getElementById('syncGrocyMetaBtn');
+            var status = document.getElementById('grocyMetaSyncStatus');
+            if (btn) btn.disabled = true;
+            if (status) {
+                status.style.display = 'block';
+                status.style.color = '#555';
+                status.textContent = 'Syncing...';
+            }
+
+            var xhr = new XMLHttpRequest();
+            xhr.open('POST', window.location.href, true);
+            xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded; charset=UTF-8');
+            xhr.onreadystatechange = function() {
+                if (xhr.readyState !== 4) return;
+                if (btn) btn.disabled = false;
+                if (!status) return;
+                if (xhr.status !== 200) {
+                    status.style.color = 'red';
+                    status.textContent = 'Sync failed (HTTP ' + xhr.status + ')';
+                    return;
+                }
+                try {
+                    var data = JSON.parse(xhr.responseText);
+                    if (data.ok) {
+                        status.style.color = 'green';
+                        status.textContent = 'Synced: ' + data.categories + ' categories, ' + data.locations + ' locations, ' + data.units + ' units';
+                        var lastSync = document.getElementById('grocyMetaLastSync');
+                        if (lastSync && data.last_sync) lastSync.textContent = data.last_sync;
+                    } else {
+                        status.style.color = 'red';
+                        status.textContent = data.error || 'Sync failed';
+                    }
+                } catch (e) {
+                    status.style.color = 'red';
+                    status.textContent = 'Sync failed (invalid response)';
+                }
+            };
+            xhr.send('sync_grocy_extended_meta=1');
+            return false;
+        }
+    </script>");
+
+    return $html->getHtml();
+}
+
+function decodeMetaNames(?string $json): array {
+    if ($json == null || trim($json) === "") {
+        return array();
+    }
+    $decoded = json_decode($json, true);
+    if (!is_array($decoded)) {
+        return array();
+    }
+    $names = array();
+    foreach ($decoded as $row) {
+        if (is_array($row) && isset($row["name"])) {
+            $names[] = strval($row["name"]);
+        }
+    }
+    return $names;
+}
+
+function syncGrocyExtendedMeta(): void {
+    header('Content-Type: application/json');
+    $db = DatabaseConnection::getInstance();
+
+    try {
+        $meta = API::getExtendedCreateMeta();
+        $lastSync = date('Y-m-d H:i:s');
+
+        $db->updateConfig("EXT_CREATE_GROCY_CATEGORIES", json_encode($meta["categories"]));
+        $db->updateConfig("EXT_CREATE_GROCY_LOCATIONS", json_encode($meta["locations"]));
+        $db->updateConfig("EXT_CREATE_GROCY_UNITS", json_encode($meta["units"]));
+        $db->updateConfig("EXT_CREATE_GROCY_META_LAST_SYNC", $lastSync);
+
+        echo json_encode(array(
+            "ok" => true,
+            "categories" => count($meta["categories"]),
+            "locations" => count($meta["locations"]),
+            "units" => count($meta["units"]),
+            "last_sync" => $lastSync,
+        ));
+    } catch (Exception $e) {
+        echo json_encode(array(
+            "ok" => false,
+            "error" => "Unable to sync Grocy metadata: " . $e->getMessage(),
+        ));
+    }
+}
 
 /**
  * @return string

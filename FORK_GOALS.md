@@ -41,6 +41,7 @@ Eigene, stabile BarcodeBuddy-Version nur für Basti mit erweitertem Autopilot-Fl
 - [ ] bestehende UI-Flows inventarisieren
 - [ ] "Daily Use" Screen priorisieren
 - [ ] Design-Token/kleines Style-System einziehen
+- [ ] Provider-DnD UX überarbeiten (mobile-tauglich; aktuelles Drag&Drop auf kleinen Screens schlecht nutzbar)
 
 ### Phase 3 – Lookup & Grocy Autopilot
 - [ ] gewünschte Zielfelder in Grocy final festlegen
