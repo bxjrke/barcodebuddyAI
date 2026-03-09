@@ -157,10 +157,9 @@ function getHtmlSettingsExtendedCreateMode(): string {
 
     $html->addHiddenField("EXT_CREATE_AUTO_ASSIGN_LOCATION_AI", "0");
 
-    $detailsOpen = ($config["EXT_CREATE_MODE_ENABLED"] == "1") ? " open" : "";
-    $html->addHtml('<details id="extendedCreateSettingsBody"' . $detailsOpen . ' style="margin-top:10px;">');
-    $html->addHtml('<summary style="cursor:pointer; font-weight:600;">&#9656; Extended Create settings</summary>');
-    $html->addLineBreak();
+    $panelDisplay = ($config["EXT_CREATE_MODE_ENABLED"] == "1") ? "block" : "none";
+    $html->addHtml('<div style="margin-top:10px;"><button type="button" id="toggleExtendedCreatePanelBtn" class="mdl-button mdl-js-button mdl-button--raised" onclick="return toggleExtendedCreatePanel();">Show/Hide Extended Create settings</button></div>');
+    $html->addHtml('<div id="extendedCreateSettingsBody" style="display:' . $panelDisplay . '; margin-top:10px;">');
     $html->addCheckbox("EXT_CREATE_DRY_RUN", "Dry run mode (preview only, no create)", $config["EXT_CREATE_DRY_RUN"], false, false);
 
     $html->addHtml('<div style="border:1px solid #ddd; border-radius:6px; padding:12px; margin:12px 0;">');
@@ -174,12 +173,12 @@ function getHtmlSettingsExtendedCreateMode(): string {
     $html->addHtml('<b>Category -> default location mapping</b><br><small>Choose one default location per category.</small>');
     $html->addHtml('<input type="hidden" id="EXT_CREATE_CATEGORY_LOCATION_MAP" name="EXT_CREATE_CATEGORY_LOCATION_MAP" value="' . sanitizeString($config["EXT_CREATE_CATEGORY_LOCATION_MAP"] ?? "") . '">');
 
-    $html->addHtml('<details style="margin:8px 0 10px 0;"><summary>Detected categories and units</summary>');
+    $html->addHtml('<div style="margin:8px 0 10px 0;"><b>Detected categories and units</b>');
     $html->addHtml('<div style="margin-top:8px;">'
         . '<div><b>Categories (' . count($categories) . '):</b> <small>' . sanitizeString(implode(', ', $categories)) . '</small></div>'
         . '<div style="margin-top:6px;"><b>Units (' . count($units) . '):</b> <small>' . sanitizeString(implode(', ', $units)) . '</small></div>'
         . '</div>');
-    $html->addHtml('</details>');
+    $html->addHtml('</div>');
 
     if (count($categories) > 0 && count($locations) > 0) {
         $tableHtml = '<table style="width:100%; border-collapse:collapse; margin-top:8px;">';
@@ -221,7 +220,7 @@ function getHtmlSettingsExtendedCreateMode(): string {
     $html->addHtml('<pre id="extendedCreateDryRunResult" style="display:none; white-space:pre-wrap; margin-top:8px; background:#f3f4f6; border:1px solid #d6d8dc; border-radius:4px; padding:10px;"></pre>');
     $html->addHtml('</div>');
 
-    $html->addHtml('</details>');
+    $html->addHtml('</div>');
 
     $html->addLineBreak();
     $html->addHtml("<script>
@@ -240,16 +239,27 @@ function getHtmlSettingsExtendedCreateMode(): string {
             hidden.value = parts.join('\\n');
         }
 
-        function updateExtendedCreateVisibility() {
-            var panel = document.getElementById('extendedCreateSettingsBody');
+        function isExtendedModeEnabled() {
             var toggle = document.getElementById('EXT_CREATE_MODE_ENABLED');
-            if (!panel || !toggle) return;
-
+            if (!toggle) return false;
             var checked = !!toggle.checked;
             if (!checked && toggle.parentNode && toggle.parentNode.classList && toggle.parentNode.classList.contains('is-checked')) {
                 checked = true;
             }
-            panel.open = checked;
+            return checked;
+        }
+
+        function updateExtendedCreateVisibility() {
+            var panel = document.getElementById('extendedCreateSettingsBody');
+            if (!panel) return;
+            panel.style.display = isExtendedModeEnabled() ? 'block' : 'none';
+        }
+
+        function toggleExtendedCreatePanel() {
+            var panel = document.getElementById('extendedCreateSettingsBody');
+            if (!panel) return false;
+            panel.style.display = (panel.style.display === 'none' || panel.style.display === '') ? 'block' : 'none';
+            return false;
         }
 
         document.addEventListener('change', function(ev) {
@@ -395,11 +405,9 @@ function getHtmlSettingsExtendedCreateMode(): string {
             return false;
         }
 
-        // Initial + resilient updates (MDL checkbox state can change without reliable native change events)
+        // Initial sync
         serializeCategoryLocationMap();
         setTimeout(updateExtendedCreateVisibility, 0);
-        setTimeout(updateExtendedCreateVisibility, 200);
-        setInterval(updateExtendedCreateVisibility, 400);
     </script>");
 
     return $html->getHtml();
