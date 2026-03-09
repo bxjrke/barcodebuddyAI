@@ -84,7 +84,15 @@ var serialize = function (form) {
         }
 
         // Convert field data to a query string
-        else if ((field.type !== 'checkbox' && field.type !== 'radio') || field.checked) {
+        else if (field.type === 'checkbox' || field.type === 'radio') {
+            let checked = field.checked;
+            if (!checked && field.parentElement && field.parentElement.classList && field.parentElement.classList.contains('is-checked')) {
+                checked = true;
+            }
+            if (checked) {
+                serialized.push(encodeURIComponent(field.name) + "=" + encodeURIComponent(field.value));
+            }
+        } else {
             serialized.push(encodeURIComponent(field.name) + "=" + encodeURIComponent(field.value));
         }
     }
