@@ -17,12 +17,12 @@ function checkAndReturn() {
     button.setAttribute("disabled", "");
     componentHandler.upgradeElement(button);
 
-    let form1 = document.getElementById("settings1_form");
-    let form2 = document.getElementById("settings2_form");
-    let form3 = document.getElementById("settings3_form");
-    let form4 = document.getElementById("settings4_form");
-
-    let postString = serialize(form1) + '&' + serialize(form2) + '&' + serialize(form3) + '&' + serialize(form4);
+    // Serialize all settings forms dynamically (including custom/fork forms)
+    let forms = Array.from(document.querySelectorAll('form[id$="_form"]'));
+    let postString = forms
+        .map(function (f) { return serialize(f); })
+        .filter(function (s) { return s && s.length > 0; })
+        .join('&');
 
     let xhr = new XMLHttpRequest();
     xhr.onreadystatechange = function () {
