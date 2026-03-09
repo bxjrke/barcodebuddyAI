@@ -382,11 +382,12 @@ function getHtmlSettingsExtendedCreateMode(): string {
                         var unitSrc = (r.unit && r.unit.source) ? r.unit.source : '—';
                         var mhdSrc = (r.default_shelf_life_days && r.default_shelf_life_days.source) ? r.default_shelf_life_days.source : '—';
 
-                        result.textContent =
-                            'Category: ' + cat + '  (' + src(catSrc) + ')\n'
-                            + 'Location: ' + loc + '  (' + src(locSrc) + ')\n'
-                            + 'Unit: ' + unit + '  (' + src(unitSrc) + ')\n'
-                            + 'Shelf life: ' + mhd + '  (' + src(mhdSrc) + ')';
+                        result.textContent = [
+                            'Category: ' + cat + '  (' + src(catSrc) + ')',
+                            'Location: ' + loc + '  (' + src(locSrc) + ')',
+                            'Unit: ' + unit + '  (' + src(unitSrc) + ')',
+                            'Shelf life: ' + mhd + '  (' + src(mhdSrc) + ')'
+                        ].join('\\n');
                     }
                 } catch (e) {
                     if (status) {
