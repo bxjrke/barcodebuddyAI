@@ -27,6 +27,11 @@ function checkAndReturn() {
         }
     });
 
+    // Allow feature-specific pages to sync computed hidden fields before serialization
+    if (typeof window.serializeCategoryLocationMap === 'function') {
+        try { window.serializeCategoryLocationMap(); } catch (e) {}
+    }
+
     // Serialize all settings forms dynamically (including custom/fork forms)
     let forms = Array.from(document.querySelectorAll('form[id$="_form"]'));
     let postString = forms
