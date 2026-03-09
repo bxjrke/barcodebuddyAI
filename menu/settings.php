@@ -157,9 +157,10 @@ function getHtmlSettingsExtendedCreateMode(): string {
 
     $html->addHiddenField("EXT_CREATE_AUTO_ASSIGN_LOCATION_AI", "0");
 
-    $panelDisplay = ($config["EXT_CREATE_MODE_ENABLED"] == "1") ? "block" : "none";
-    $html->addHtml('<div style="margin-top:10px;"><button type="button" id="toggleExtendedCreatePanelBtn" class="mdl-button mdl-js-button mdl-button--raised" onclick="return toggleExtendedCreatePanel();">Show/Hide Extended Create settings</button></div>');
-    $html->addHtml('<div id="extendedCreateSettingsBody" style="display:' . $panelDisplay . '; margin-top:10px;">');
+    $detailsOpen = ($config["EXT_CREATE_MODE_ENABLED"] == "1") ? " open" : "";
+    $html->addHtml('<details id="extendedCreateSettingsBody"' . $detailsOpen . ' style="margin-top:10px;">');
+    $html->addHtml('<summary style="cursor:pointer; font-weight:600;">Extended Create settings</summary>');
+    $html->addLineBreak();
     $html->addCheckbox("EXT_CREATE_DRY_RUN", "Dry run mode (preview only, no create)", $config["EXT_CREATE_DRY_RUN"], false, false);
 
     $html->addHtml('<div style="border:1px solid #ddd; border-radius:6px; padding:12px; margin:12px 0;">');
@@ -220,7 +221,7 @@ function getHtmlSettingsExtendedCreateMode(): string {
     $html->addHtml('<pre id="extendedCreateDryRunResult" style="display:none; white-space:pre-wrap; margin-top:8px; background:#f3f4f6; border:1px solid #d6d8dc; border-radius:4px; padding:10px;"></pre>');
     $html->addHtml('</div>');
 
-    $html->addHtml('</div>');
+    $html->addHtml('</details>');
 
     $html->addLineBreak();
     $html->addHtml("<script>
@@ -252,14 +253,7 @@ function getHtmlSettingsExtendedCreateMode(): string {
         function updateExtendedCreateVisibility() {
             var panel = document.getElementById('extendedCreateSettingsBody');
             if (!panel) return;
-            panel.style.display = isExtendedModeEnabled() ? 'block' : 'none';
-        }
-
-        function toggleExtendedCreatePanel() {
-            var panel = document.getElementById('extendedCreateSettingsBody');
-            if (!panel) return false;
-            panel.style.display = (panel.style.display === 'none' || panel.style.display === '') ? 'block' : 'none';
-            return false;
+            panel.open = isExtendedModeEnabled();
         }
 
         document.addEventListener('change', function(ev) {
