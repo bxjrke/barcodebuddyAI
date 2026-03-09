@@ -159,14 +159,14 @@ function getHtmlSettingsExtendedCreateMode(): string {
 
     $detailsOpen = ($config["EXT_CREATE_MODE_ENABLED"] == "1") ? " open" : "";
     $html->addHtml('<details id="extendedCreateSettingsBody"' . $detailsOpen . ' style="margin-top:10px;">');
-    $html->addHtml('<summary style="cursor:pointer; font-weight:600;">Extended Create settings</summary>');
+    $html->addHtml('<summary style="cursor:pointer; font-weight:600;">&#9656; Extended Create settings</summary>');
     $html->addLineBreak();
     $html->addCheckbox("EXT_CREATE_DRY_RUN", "Dry run mode (preview only, no create)", $config["EXT_CREATE_DRY_RUN"], false, false);
 
     $html->addHtml('<div style="border:1px solid #ddd; border-radius:6px; padding:12px; margin:12px 0;">');
     $html->addHtml('<b>Grocy metadata</b><br><small>Categories: ' . count($categories) . ' | Locations: ' . count($locations) . ' | Units: ' . count($units) . '</small><br>');
     $html->addHtml('<small>Last sync: <span id="grocyMetaLastSync">' . sanitizeString($lastSync) . '</span></small><br>');
-    $html->addHtml('<div style="margin:10px 0 12px 0;"><button type="button" id="syncGrocyMetaBtn" style="padding:8px 14px; border:1px solid #999; border-radius:6px; background:#f6f6f6; cursor:pointer;" onclick="return syncGrocyExtendedMeta();">⟳ Sync now</button></div>');
+    $html->addHtml('<div style="margin:10px 0 12px 0;"><button type="button" id="syncGrocyMetaBtn" class="mdl-button mdl-js-button mdl-button--raised mdl-button--accent" onclick="return syncGrocyExtendedMeta();">Sync now</button></div>');
     $html->addHtml('<div id="grocyMetaSyncStatus" style="display:none; margin:8px 0 10px 0; font-weight:600;"></div>');
 
     $existingMap = parseCategoryLocationMapping($config["EXT_CREATE_CATEGORY_LOCATION_MAP"] ?? "");
@@ -216,7 +216,7 @@ function getHtmlSettingsExtendedCreateMode(): string {
         ->pattern('.{2,120}')
         ->generate(true)
     );
-    $html->addHtml('<div style="margin:10px 0 8px 0;"><button type="button" id="runExtendedCreateDryRunBtn" style="padding:8px 14px; border:1px solid #999; border-radius:6px; background:#f6f6f6; cursor:pointer;" onclick="return runExtendedCreateDryRun(false);">▶ Test</button></div>');
+    $html->addHtml('<div style="margin:10px 0 8px 0;"><button type="button" id="runExtendedCreateDryRunBtn" class="mdl-button mdl-js-button mdl-button--raised mdl-button--accent" onclick="return runExtendedCreateDryRun(false);">Test</button></div>');
     $html->addHtml('<div id="extendedCreateDryRunStatus" style="display:none; margin-top:8px; font-weight:600;"></div>');
     $html->addHtml('<pre id="extendedCreateDryRunResult" style="display:none; white-space:pre-wrap; margin-top:8px; background:#f3f4f6; border:1px solid #d6d8dc; border-radius:4px; padding:10px;"></pre>');
     $html->addHtml('</div>');
