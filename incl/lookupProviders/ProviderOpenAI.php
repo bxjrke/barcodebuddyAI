@@ -215,6 +215,53 @@ class ProviderOpenAI extends LookupProvider {
             . "If unknown, return exactly: UNKNOWN";
     }
 
+    public function suggestCategoryDefaultLocation(string $categoryName, array $locations): ?string {
+        $this->lastErrorMessage = null;
+
+        if (!$this->isProviderEnabled()) {
+            return null;
+        }
+        if ($this->apiKey == null || trim($this->apiKey) === "") {
+            return null;
+        }
+        if (count($locations) === 0) {
+            return null;
+        }
+
+        $payload = array(
+            "model" => $this->getConfiguredModel(),
+            "temperature" => 0,
+            "input" => "Choose the best default storage location for this product category.\n"
+                . "Category: " . $categoryName . "\n"
+                . "Allowed locations: [" . implode(", ", array_map('strval', $locations)) . "]\n"
+                . "Return ONLY the exact location name from the allowed locations, or UNKNOWN."
+        );
+
+        $result = $this->execute(
+            self::OPENAI_ENDPOINT,
+            METHOD_POST,
+            null,
+            null,
+            array("Authorization" => "Bearer " . trim($this->apiKey)),
+            true,
+            json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)
+        );
+
+        if (!is_array($result)) {
+            return null;
+        }
+        $content = $this->extractResponseText($result);
+        if ($content == null) {
+            return null;
+        }
+
+        $content = trim($content);
+        if ($content === "" || strtoupper($content) === "UNKNOWN") {
+            return null;
+        }
+        return $content;
+    }
+
     private function buildExtendedCreatePrompt(string $barcode, string $productName, array $categories, array $locations, array $units): string {
         $categoryList = implode(", ", array_map('strval', $categories));
         $locationList = implode(", ", array_map('strval', $locations));

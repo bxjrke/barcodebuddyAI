@@ -162,6 +162,7 @@ function getHtmlSettingsExtendedCreateMode(): string {
     $html->addHtml('<summary style="cursor:pointer; font-weight:600;">Extended Create settings</summary>');
     $html->addLineBreak();
     $html->addCheckbox("EXT_CREATE_DRY_RUN", "Dry run mode (preview only, no create)", $config["EXT_CREATE_DRY_RUN"], false, false);
+    $html->addCheckbox("EXT_CREATE_AUTO_ASSIGN_LOCATION_AI", "Allow AI location override when category mapping is not ideal", $config["EXT_CREATE_AUTO_ASSIGN_LOCATION_AI"], false, false);
 
     $html->addHtml('<div style="border:1px solid #ddd; border-radius:6px; padding:12px; margin:12px 0;">');
     $html->addHtml('<b>Grocy metadata</b><br><small>Categories: ' . count($categories) . ' | Locations: ' . count($locations) . ' | Units: ' . count($units) . '</small><br>');
@@ -297,7 +298,7 @@ function getHtmlSettingsExtendedCreateMode(): string {
                     var data = JSON.parse(xhr.responseText);
                     if (data.ok) {
                         status.style.color = 'green';
-                        status.textContent = 'Synced: ' + data.categories + ' categories, ' + data.locations + ' locations, ' + data.units + ' units. Reload page to refresh mapping table.';
+                        status.textContent = 'Synced: ' + data.categories + ' categories, ' + data.locations + ' locations, ' + data.units + ' units. Auto-mapped: ' + (data.auto_mapped || 0) + '. Reload page to refresh mapping table.';
                         var lastSync = document.getElementById('grocyMetaLastSync');
                         if (lastSync && data.last_sync) lastSync.textContent = data.last_sync;
                     } else {
@@ -428,6 +429,7 @@ function decodeMetaNames(?string $json): array {
 function syncGrocyExtendedMeta(): void {
     header('Content-Type: application/json');
     $db = DatabaseConnection::getInstance();
+    $config = BBConfig::getInstance();
 
     try {
         $meta = API::getExtendedCreateMeta();
@@ -438,11 +440,43 @@ function syncGrocyExtendedMeta(): void {
         $db->updateConfig("EXT_CREATE_GROCY_UNITS", json_encode($meta["units"]));
         $db->updateConfig("EXT_CREATE_GROCY_META_LAST_SYNC", $lastSync);
 
+        $autoMapped = 0;
+        $mappingText = $config["EXT_CREATE_CATEGORY_LOCATION_MAP"] ?? "";
+        $mapping = parseCategoryLocationMapping($mappingText);
+        $locations = extractMetaNamesForMatching($meta["locations"]);
+
+        if (
+            count($locations) > 0
+            && $config["LOOKUP_USE_OPENAI"] == "1"
+            && ($config["LOOKUP_OPENAI_API_KEY"] ?? "") != ""
+        ) {
+            require_once __DIR__ . "/../incl/lookupProviders/ProviderOpenAI.php";
+            $provider = new ProviderOpenAI();
+            foreach (extractMetaNamesForMatching($meta["categories"]) as $categoryName) {
+                $key = strtolower(trim($categoryName));
+                if ($key === "" || isset($mapping[$key])) {
+                    continue; // already mapped -> keep user setting
+                }
+                $suggested = $provider->suggestCategoryDefaultLocation($categoryName, $locations);
+                $resolved = resolveFromAllowedList($suggested, $locations);
+                if ($resolved != null) {
+                    $mapping[$key] = $resolved;
+                    $autoMapped++;
+                }
+            }
+        }
+
+        if ($autoMapped > 0) {
+            $newMappingText = buildCategoryLocationMappingText($mapping);
+            $db->updateConfig("EXT_CREATE_CATEGORY_LOCATION_MAP", $newMappingText);
+        }
+
         echo json_encode(array(
             "ok" => true,
             "categories" => count($meta["categories"]),
             "locations" => count($meta["locations"]),
             "units" => count($meta["units"]),
+            "auto_mapped" => $autoMapped,
             "last_sync" => $lastSync,
         ));
     } catch (Exception $e) {
@@ -502,7 +536,7 @@ function runExtendedCreateDryRun(): void {
             $locationSource = "manual_mapping";
         }
     }
-    if ($resolvedLocation == null) {
+    if ($resolvedLocation == null && $config["EXT_CREATE_AUTO_ASSIGN_LOCATION_AI"] == "1") {
         $resolvedLocation = resolveFromAllowedList($aiSuggestion["location"] ?? null, $locations);
         if ($resolvedLocation != null) {
             $locationSource = "ai";
@@ -593,6 +627,17 @@ function parseCategoryLocationMapping(string $mappingText): array {
         }
     }
     return $map;
+}
+
+function buildCategoryLocationMappingText(array $mapping): string {
+    $lines = array();
+    foreach ($mapping as $categoryKey => $locationName) {
+        if ($categoryKey === "" || trim($locationName) === "") {
+            continue;
+        }
+        $lines[] = $categoryKey . " = " . trim($locationName);
+    }
+    return implode("\n", $lines);
 }
 
 function resolveFromAllowedList(?string $value, array $allowed): ?string {
