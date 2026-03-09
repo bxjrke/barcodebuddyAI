@@ -149,11 +149,18 @@ function getHtmlSettingsExtendedCreateMode(): string {
         $lastSync = "never";
     }
 
-    $html->addCheckbox("EXT_CREATE_MODE_ENABLED", "Enable Extended Create Mode", $config["EXT_CREATE_MODE_ENABLED"], false, false);
+    $enabledChecked = ($config["EXT_CREATE_MODE_ENABLED"] == "1") ? " checked" : "";
+    $html->addHtml('<label class="mdl-switch mdl-js-switch mdl-js-ripple-effect" for="EXT_CREATE_MODE_ENABLED">'
+        . '<input type="checkbox" id="EXT_CREATE_MODE_ENABLED" name="EXT_CREATE_MODE_ENABLED" value="1" class="mdl-switch__input"' . $enabledChecked . '>'
+        . '<span class="mdl-switch__label">Enable Extended Create Mode</span>'
+        . '</label><input type="hidden" value="0" name="EXT_CREATE_MODE_ENABLED_hidden"/>');
+
     $html->addCheckbox("EXT_CREATE_DRY_RUN", "Dry run mode (preview only, no create)", $config["EXT_CREATE_DRY_RUN"], false, false);
     $html->addHiddenField("EXT_CREATE_AUTO_ASSIGN_LOCATION_AI", "0");
 
-    $html->addHtml('<div id="extendedCreateSettingsBody" style="display:' . (($config["EXT_CREATE_MODE_ENABLED"] == "1") ? "block" : "none") . ';">');
+    $detailsOpen = ($config["EXT_CREATE_MODE_ENABLED"] == "1") ? " open" : "";
+    $html->addHtml('<details id="extendedCreateSettingsBody"' . $detailsOpen . ' style="margin-top:10px;">');
+    $html->addHtml('<summary style="cursor:pointer; font-weight:600;">Extended Create settings</summary>');
 
     $html->addHtml('<div style="border:1px solid #ddd; border-radius:6px; padding:12px; margin:12px 0;">');
     $html->addHtml('<b>Grocy metadata</b><br><small>Categories: ' . count($categories) . ' | Locations: ' . count($locations) . ' | Units: ' . count($units) . '</small><br>');
@@ -206,7 +213,7 @@ function getHtmlSettingsExtendedCreateMode(): string {
     $html->addHtml('<pre id="extendedCreateDryRunResult" style="display:none; white-space:pre-wrap; margin-top:8px; background:#f3f4f6; border:1px solid #d6d8dc; border-radius:4px; padding:10px;"></pre>');
     $html->addHtml('</div>');
 
-    $html->addHtml('</div>');
+    $html->addHtml('</details>');
 
     $html->addLineBreak();
     $html->addHtml("<script>
@@ -225,13 +232,30 @@ function getHtmlSettingsExtendedCreateMode(): string {
             hidden.value = parts.join('\\n');
         }
 
+        function updateExtendedCreateVisibility() {
+            var panel = document.getElementById('extendedCreateSettingsBody');
+            var toggle = document.getElementById('EXT_CREATE_MODE_ENABLED');
+            if (!panel || !toggle) return;
+
+            var checked = !!toggle.checked;
+            if (!checked && toggle.parentNode && toggle.parentNode.classList && toggle.parentNode.classList.contains('is-checked')) {
+                checked = true;
+            }
+            panel.open = checked;
+        }
+
         document.addEventListener('change', function(ev) {
             if (ev.target && ev.target.classList && ev.target.classList.contains('ext-map-location')) {
                 serializeCategoryLocationMap();
             }
             if (ev.target && ev.target.id === 'EXT_CREATE_MODE_ENABLED') {
-                var body = document.getElementById('extendedCreateSettingsBody');
-                if (body) body.style.display = ev.target.checked ? 'block' : 'none';
+                setTimeout(updateExtendedCreateVisibility, 0);
+            }
+        });
+
+        document.addEventListener('click', function(ev) {
+            if (ev.target && (ev.target.id === 'EXT_CREATE_MODE_ENABLED' || ev.target.getAttribute('for') === 'EXT_CREATE_MODE_ENABLED')) {
+                setTimeout(updateExtendedCreateVisibility, 0);
             }
         });
 
@@ -363,7 +387,11 @@ function getHtmlSettingsExtendedCreateMode(): string {
             return false;
         }
 
+        // Initial + resilient updates (MDL checkbox state can change without reliable native change events)
         serializeCategoryLocationMap();
+        setTimeout(updateExtendedCreateVisibility, 0);
+        setTimeout(updateExtendedCreateVisibility, 200);
+        setInterval(updateExtendedCreateVisibility, 400);
     </script>");
 
     return $html->getHtml();
