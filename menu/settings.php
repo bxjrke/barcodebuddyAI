@@ -187,7 +187,7 @@ function getHtmlSettingsExtendedCreateMode(): string {
         $tableHtml = '<table style="width:100%; border-collapse:collapse; margin-top:8px;">';
         $tableHtml .= '<tr><th style="text-align:left; border-bottom:1px solid #ddd; padding:6px;">Category</th><th style="text-align:left; border-bottom:1px solid #ddd; padding:6px;">Default location</th></tr>';
         foreach ($categories as $catName) {
-            $mapped = $existingMap[strtolower($catName)] ?? "";
+            $mapped = $existingMap[mb_strtolower($catName, 'UTF-8')] ?? "";
             $tableHtml .= '<tr>';
             $tableHtml .= '<td style="padding:6px; border-bottom:1px solid #f0f0f0;">' . sanitizeString($catName) . '</td>';
             $tableHtml .= '<td style="padding:6px; border-bottom:1px solid #f0f0f0;">';
@@ -454,7 +454,7 @@ function syncGrocyExtendedMeta(): void {
             require_once __DIR__ . "/../incl/lookupProviders/ProviderOpenAI.php";
             $provider = new ProviderOpenAI();
             foreach (extractMetaNamesForMatching($meta["categories"]) as $categoryName) {
-                $key = strtolower(trim($categoryName));
+                $key = mb_strtolower(trim($categoryName), 'UTF-8');
                 if ($key === "" || isset($mapping[$key])) {
                     continue; // already mapped -> keep user setting
                 }
@@ -530,8 +530,8 @@ function runExtendedCreateDryRun(): void {
 
     $resolvedLocation = null;
     $locationSource = "fallback";
-    if ($resolvedCategory != null && isset($mapping[strtolower($resolvedCategory)])) {
-        $mapped = resolveFromAllowedList($mapping[strtolower($resolvedCategory)], $locations);
+    if ($resolvedCategory != null && isset($mapping[mb_strtolower($resolvedCategory, 'UTF-8')])) {
+        $mapped = resolveFromAllowedList($mapping[mb_strtolower($resolvedCategory, 'UTF-8')], $locations);
         if ($mapped != null) {
             $resolvedLocation = $mapped;
             $locationSource = "manual_mapping";
@@ -625,10 +625,10 @@ function parseCategoryLocationMapping(string $mappingText): array {
         $line = trim($line);
         if ($line === "" || strpos($line, "=") === false) continue;
         $parts = explode("=", $line, 2);
-        $cat = trim($parts[0]);
-        $loc = trim($parts[1]);
+        $cat = html_entity_decode(trim($parts[0]), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $loc = html_entity_decode(trim($parts[1]), ENT_QUOTES | ENT_HTML5, 'UTF-8');
         if ($cat !== "" && $loc !== "") {
-            $map[strtolower($cat)] = $loc;
+            $map[mb_strtolower($cat, 'UTF-8')] = $loc;
         }
     }
     return $map;
