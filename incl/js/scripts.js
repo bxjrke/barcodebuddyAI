@@ -17,6 +17,16 @@ function checkAndReturn() {
     button.setAttribute("disabled", "");
     componentHandler.upgradeElement(button);
 
+    // Ensure Material Design toggles are mirrored to real input.checked before serialization
+    document.querySelectorAll('input.mdl-checkbox__input, input.mdl-switch__input').forEach(function (input) {
+        let parent = input.parentElement;
+        if (parent && parent.classList && parent.classList.contains('is-checked')) {
+            input.checked = true;
+        } else if (parent && parent.classList) {
+            input.checked = false;
+        }
+    });
+
     // Serialize all settings forms dynamically (including custom/fork forms)
     let forms = Array.from(document.querySelectorAll('form[id$="_form"]'));
     let postString = forms
