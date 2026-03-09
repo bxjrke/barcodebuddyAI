@@ -187,11 +187,11 @@ function getHtmlSettingsExtendedCreateMode(): string {
         $tableHtml = '<table style="width:100%; border-collapse:collapse; margin-top:8px;">';
         $tableHtml .= '<tr><th style="text-align:left; border-bottom:1px solid #ddd; padding:6px;">Category</th><th style="text-align:left; border-bottom:1px solid #ddd; padding:6px;">Default location</th></tr>';
         foreach ($categories as $catName) {
-            $mapped = $existingMap[mb_strtolower($catName, 'UTF-8')] ?? "";
+            $mapped = $existingMap[mb_strtolower(trim($catName), 'UTF-8')] ?? "";
             $tableHtml .= '<tr>';
             $tableHtml .= '<td style="padding:6px; border-bottom:1px solid #f0f0f0;">' . sanitizeString($catName) . '</td>';
             $tableHtml .= '<td style="padding:6px; border-bottom:1px solid #f0f0f0;">';
-            $tableHtml .= '<select class="ext-map-location" data-category="' . sanitizeString($catName) . '" style="width:100%; max-width:360px; padding:6px;">';
+            $tableHtml .= '<select class="ext-map-location" data-category="' . sanitizeString(trim($catName)) . '" style="width:100%; max-width:360px; padding:6px;">';
             $tableHtml .= '<option value="">(no override)</option>';
             foreach ($locations as $locName) {
                 $selected = (strcasecmp($locName, $mapped) === 0) ? ' selected' : '';
@@ -530,8 +530,8 @@ function runExtendedCreateDryRun(): void {
 
     $resolvedLocation = null;
     $locationSource = "fallback";
-    if ($resolvedCategory != null && isset($mapping[mb_strtolower($resolvedCategory, 'UTF-8')])) {
-        $mapped = resolveFromAllowedList($mapping[mb_strtolower($resolvedCategory, 'UTF-8')], $locations);
+    if ($resolvedCategory != null && isset($mapping[mb_strtolower(trim($resolvedCategory), 'UTF-8')])) {
+        $mapped = resolveFromAllowedList($mapping[mb_strtolower(trim($resolvedCategory), 'UTF-8')], $locations);
         if ($mapped != null) {
             $resolvedLocation = $mapped;
             $locationSource = "manual_mapping";
