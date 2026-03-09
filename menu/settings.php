@@ -150,19 +150,20 @@ function getHtmlSettingsExtendedCreateMode(): string {
     }
 
     $enabledChecked = ($config["EXT_CREATE_MODE_ENABLED"] == "1") ? " checked" : "";
+    $html->addHtml('<input type="hidden" value="0" name="EXT_CREATE_MODE_ENABLED_hidden"/>');
     $html->addHtml('<label class="mdl-switch mdl-js-switch mdl-js-ripple-effect" for="EXT_CREATE_MODE_ENABLED">'
         . '<input type="checkbox" id="EXT_CREATE_MODE_ENABLED" name="EXT_CREATE_MODE_ENABLED" value="1" class="mdl-switch__input"' . $enabledChecked . '>'
         . '<span class="mdl-switch__label">Enable Extended Create Mode</span>'
-        . '</label><input type="hidden" value="0" name="EXT_CREATE_MODE_ENABLED_hidden"/>');
+        . '</label>');
 
-    $html->addHiddenField("EXT_CREATE_AUTO_ASSIGN_LOCATION_AI", "0");
+
 
     $detailsOpen = ($config["EXT_CREATE_MODE_ENABLED"] == "1") ? " open" : "";
     $html->addHtml('<details id="extendedCreateSettingsBody"' . $detailsOpen . ' style="margin-top:10px;">');
     $html->addHtml('<summary style="cursor:pointer; font-weight:600;">Extended Create settings</summary>');
     $html->addLineBreak();
     $html->addCheckbox("EXT_CREATE_DRY_RUN", "Dry run mode (preview only, no create)", $config["EXT_CREATE_DRY_RUN"], false, false);
-    $html->addCheckbox("EXT_CREATE_AUTO_ASSIGN_LOCATION_AI", "Allow AI location override when category mapping is not ideal", $config["EXT_CREATE_AUTO_ASSIGN_LOCATION_AI"], false, false);
+    $html->addCheckbox("EXT_CREATE_AUTO_ASSIGN_LOCATION_AI", "AI Location Override", $config["EXT_CREATE_AUTO_ASSIGN_LOCATION_AI"], false, false);
 
     $html->addHtml('<div style="border:1px solid #ddd; border-radius:6px; padding:12px; margin:12px 0;">');
     $html->addHtml('<b>Grocy metadata</b><br><small>Categories: ' . count($categories) . ' | Locations: ' . count($locations) . ' | Units: ' . count($units) . '</small><br>');
@@ -376,7 +377,7 @@ function getHtmlSettingsExtendedCreateMode(): string {
                         var loc = (r.location && r.location.value) ? r.location.value : '—';
                         var unit = (r.unit && r.unit.value) ? r.unit.value : '—';
                         var mhd = (r.default_shelf_life_days && r.default_shelf_life_days.value !== null) ? r.default_shelf_life_days.value + ' days' : '—';
-                        var sourceMap = { 'ai': 'AI suggestion', 'manual_mapping': 'Category mapping', 'fallback': 'Fallback', 'missing': 'Missing' };
+                        var sourceMap = { 'ai': 'AI suggestion', 'ai_cold_override': 'AI cold/frozen override', 'manual_mapping': 'Category mapping', 'fallback': 'Fallback', 'missing': 'Missing' };
                         var src = function(v){ return sourceMap[v] || v || '—'; };
                         var catSrc = (r.category && r.category.source) ? r.category.source : '—';
                         var locSrc = (r.location && r.location.source) ? r.location.source : '—';
@@ -536,12 +537,16 @@ function runExtendedCreateDryRun(): void {
             $locationSource = "manual_mapping";
         }
     }
-    if ($resolvedLocation == null && $config["EXT_CREATE_AUTO_ASSIGN_LOCATION_AI"] == "1") {
-        $resolvedLocation = resolveFromAllowedList($aiSuggestion["location"] ?? null, $locations);
-        if ($resolvedLocation != null) {
-            $locationSource = "ai";
-        }
+
+    $aiLocationCandidate = resolveFromAllowedList($aiSuggestion["location"] ?? null, $locations);
+    $allowAiOverride = ($config["EXT_CREATE_AUTO_ASSIGN_LOCATION_AI"] == "1");
+    $coldRequired = isColdStorageRequired($name, $resolvedCategory, $aiSuggestion);
+
+    if ($allowAiOverride && $coldRequired && $aiLocationCandidate != null && isColdLocation($aiLocationCandidate)) {
+        $resolvedLocation = $aiLocationCandidate;
+        $locationSource = "ai_cold_override";
     }
+
     if ($resolvedLocation == null && count($locations) > 0) {
         $resolvedLocation = $locations[0];
         $locationSource = "fallback";
@@ -648,6 +653,28 @@ function resolveFromAllowedList(?string $value, array $allowed): ?string {
         }
     }
     return null;
+}
+
+function isColdLocation(string $locationName): bool {
+    $text = strtolower($locationName);
+    $keywords = array('kühl', 'kuehl', 'kühlschrank', 'fridge', 'refriger', 'tiefkühl', 'tiefkuehl', 'freezer', 'gefrier');
+    foreach ($keywords as $kw) {
+        if (strpos($text, $kw) !== false) {
+            return true;
+        }
+    }
+    return false;
+}
+
+function isColdStorageRequired(string $productName, ?string $categoryName, ?array $aiSuggestion): bool {
+    $text = strtolower($productName . ' ' . ($categoryName ?? '') . ' ' . strval($aiSuggestion['category'] ?? '') . ' ' . strval($aiSuggestion['location'] ?? ''));
+    $keywords = array('gekühlt', 'kühl', 'kuehl', 'frisch', 'frozen', 'tiefkühl', 'tiefkuehl', 'joghurt', 'yoghurt', 'quark', 'butter', 'milch', 'käse', 'kaese', 'cheese', 'fisch', 'meat');
+    foreach ($keywords as $kw) {
+        if (strpos($text, $kw) !== false) {
+            return true;
+        }
+    }
+    return false;
 }
 
 function resolveMetaIdByName(?string $name, $rawMeta): ?int {
